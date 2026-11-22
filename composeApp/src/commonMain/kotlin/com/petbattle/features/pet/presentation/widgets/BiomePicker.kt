@@ -3,6 +3,12 @@ package com.petbattle.features.pet.presentation.widgets
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,83 +17,99 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.petbattle.core.ui.GameIcon
+import com.petbattle.core.ui.GameIconImage
+import com.petbattle.core.ui.GameUi
 import com.petbattle.features.pet.presentation.game.drawBiomeBackdrop
 import com.petbattle.shared_features.biomes.domain.Biome
 import com.petbattle.shared_features.biomes.presentation.background
 import com.petbattle.shared_features.biomes.presentation.label
-import com.petbattle.shared_features.pet_status.domain.entities.PetRosterEntity
+import com.petbattle.shared_features.pet_status.domain.GameRules
+import com.petbattle.shared_features.pet_status.domain.entities.GameStateEntity
 import org.jetbrains.compose.resources.imageResource
 
 /**
- * Menú de biomas. Cada uno muestra cuántas mascotas viven allí; los vacíos se marcan como
- * nuevos. Elegir uno viaja a él.
+ * Cuadrícula de biomas (pestaña "Biomas" del menú de juego). Los comprados muestran cuántas
+ * mascotas viven allí y elegirlos viaja a ellos; los bloqueados muestran el candado y su
+ * precio, y elegirlos intenta comprarlos.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BiomePickerSheet(
-    roster: PetRosterEntity,
-    title: String,
-    onPicked: (Biome) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge)
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(160.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(top = 12.dp),
-            ) {
-                items(Biome.entries) { biome ->
-                    BiomeTile(
-                        biome = biome,
-                        petCount = roster.petsIn(biome).size,
-                        selected = roster.currentBiome == biome,
-                        onClick = { onPicked(biome) },
-                    )
-                }
-            }
+fun BiomeGrid(gameState: GameStateEntity, onPicked: (Biome) -> Unit, modifier: Modifier = Modifier) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(150.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier,
+    ) {
+        items(Biome.entries) { biome ->
+            BiomeTile(
+                biome = biome,
+                petCount = gameState.petsIn(biome).size,
+                selected = gameState.currentBiome == biome,
+                unlocked = gameState.isUnlocked(biome),
+                affordable = gameState.gold >= GameRules.BIOME_PRICE,
+                onClick = { onPicked(biome) },
+            )
         }
     }
 }
 
 @Composable
-private fun BiomeTile(biome: Biome, petCount: Int, selected: Boolean, onClick: () -> Unit) {
-    val scheme = MaterialTheme.colorScheme
+private fun BiomeTile(
+    biome: Biome,
+    petCount: Int,
+    selected: Boolean,
+    unlocked: Boolean,
+    affordable: Boolean,
+    onClick: () -> Unit,
+) {
     val image = imageResource(biome.background)
+    // Madera oscura; el bioma actual, con borde dorado.
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
-        color = if (selected) scheme.primaryContainer else scheme.surfaceContainerHighest,
-        border = if (selected) BorderStroke(2.dp, scheme.primary) else null,
+        color = GameUi.Inset,
+        border = BorderStroke(3.dp, if (selected) GameUi.Gold else GameUi.Outline),
     ) {
         Column(Modifier.padding(8.dp)) {
-            Canvas(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp))) {
-                drawBiomeBackdrop(image)
+            Box(contentAlignment = Alignment.Center) {
+                Canvas(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp))) {
+                    drawBiomeBackdrop(image)
+                    // Los bloqueados se ven apagados.
+                    if (!unlocked) drawRect(Color(0x99000000))
+                }
+                if (!unlocked) Icon(Icons.Filled.Lock, contentDescription = "Bloqueado", tint = Color.White, modifier = Modifier.size(32.dp))
             }
-            Text(biome.label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 6.dp))
-            Text(
-                when (petCount) {
-                    0 -> "Vacío"
-                    1 -> "1 mascota"
-                    else -> "$petCount mascotas"
-                },
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = if (petCount == 0) scheme.outline else scheme.primary,
-            )
+            Text(biome.label, style = GameUi.text(15.sp), modifier = Modifier.padding(top = 6.dp))
+            if (unlocked) {
+                Text(
+                    when (petCount) {
+                        0 -> "Vacío"
+                        1 -> "1 mascota"
+                        else -> "$petCount mascotas"
+                    },
+                    style = GameUi.text(12.sp, if (petCount == 0) Color(0xFFCFC3B4) else GameUi.Gold),
+                )
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    GameIconImage(GameIcon.Coin, 16.dp)
+                    Text(
+                        " Comprar por ${GameRules.BIOME_PRICE}",
+                        style = GameUi.text(12.sp, if (affordable) GameUi.Gold else Color(0xFFCFC3B4)),
+                    )
+                }
+            }
         }
     }
 }

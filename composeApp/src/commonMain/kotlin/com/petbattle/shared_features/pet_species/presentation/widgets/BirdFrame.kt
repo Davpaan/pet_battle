@@ -29,6 +29,6 @@ fun BirdFrame(
     Canvas(modifier.size(size)) {
         val side = this.size.width * species.spriteScale
         val origin = Offset((this.size.width - side) / 2, this.size.height - side)
-        drawSpriteFrame(image, BirdSheet.FRAME_SIZE, column, row, origin, side)
+        drawSpriteFrame(image, BirdSheet.FRAME_SIZE, column, row, origin, side, filterQuality = BirdSheet.FILTER)
     }
 }

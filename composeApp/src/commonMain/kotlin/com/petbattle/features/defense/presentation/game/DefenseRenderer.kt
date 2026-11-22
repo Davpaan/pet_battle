@@ -158,10 +158,13 @@ private fun DrawScope.drawDefender(d: Defender, game: DefenseGame, sprites: Defe
     val pop = if (d.age < 0.3) 1 + 0.15f * sin(d.age / 0.3 * kotlin.math.PI).toFloat() else 1f
     val squash = if (d.shotAge < 0.16) sin(d.shotAge / 0.16 * kotlin.math.PI).toFloat() else 0f
     val col = floor(game.time / 0.45).toInt() % 4
+    // Recogida para recolocarla: semitransparente.
+    val alpha = if (game.editingId == d.pet.id) 0.45f else 1f
     scale(pop * (1 + 0.08f * squash), pop * (1 - 0.08f * squash), pivot = feet) {
         drawSpriteFrame(
             sprites.pets.getValue(d.pet.species), BirdSheet.FRAME_SIZE, col, BirdSheet.IDLE_ROW,
             Offset(feet.x - size / 2, feet.y - size), size, flipX = d.facingRight,
+            alpha = alpha, filterQuality = BirdSheet.FILTER,
         )
     }
     // Nombre · nivel (o agotada) y barra de energía.

@@ -12,9 +12,10 @@ import kotlin.math.roundToInt
 
 /**
  * Dibuja una celda [frame]x[frame] (columna [col], fila [row]) de un spritesheet
- * en el cuadrado de lado [size] cuyo vértice superior izquierdo es [topLeft], con
- * muestreo nearest-neighbour para que el pixel art se vea nítido. [flipX] lo refleja
- * respecto a su propio centro.
+ * en el cuadrado de lado [size] cuyo vértice superior izquierdo es [topLeft]. Por defecto
+ * usa muestreo nearest-neighbour para que el pixel art se vea nítido; los sprites de alta
+ * resolución (pájaros) pasan un [filterQuality] suavizado. [flipX] lo refleja respecto a su
+ * propio centro.
  */
 fun DrawScope.drawSpriteFrame(
     image: ImageBitmap,
@@ -26,6 +27,7 @@ fun DrawScope.drawSpriteFrame(
     flipX: Boolean = false,
     alpha: Float = 1f,
     colorFilter: ColorFilter? = null,
+    filterQuality: FilterQuality = FilterQuality.None,
 ) {
     val dstOffset = IntOffset(topLeft.x.roundToInt(), topLeft.y.roundToInt())
     val dstSize = IntSize(size.roundToInt(), size.roundToInt())
@@ -38,7 +40,7 @@ fun DrawScope.drawSpriteFrame(
             dstSize = dstSize,
             alpha = alpha,
             colorFilter = colorFilter,
-            filterQuality = FilterQuality.None,
+            filterQuality = filterQuality,
         )
     }
     if (flipX) {

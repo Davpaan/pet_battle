@@ -1,26 +1,38 @@
 package com.petbattle.shared_features.pet_species.presentation
 
+import androidx.compose.ui.graphics.FilterQuality
 import com.petbattle.resources.Res
+import com.petbattle.resources.pet_bee_eater
 import com.petbattle.resources.pet_blue_jay
 import com.petbattle.resources.pet_cardinal
 import com.petbattle.resources.pet_cedar_waxwing
+import com.petbattle.resources.pet_chucao
 import com.petbattle.resources.pet_chickadee
 import com.petbattle.resources.pet_crow
 import com.petbattle.resources.pet_house_finch
 import com.petbattle.resources.pet_hummingbird
+import com.petbattle.resources.pet_kestrel
 import com.petbattle.resources.pet_magpie
 import com.petbattle.resources.pet_red_robin
-import com.petbattle.resources.pet_stellers_jay
 import com.petbattle.resources.pet_vanilla_chick
 import com.petbattle.resources.pet_white_dove
 import com.petbattle.resources.pet_wood_thrush
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import org.jetbrains.compose.resources.DrawableResource
 
-/** Disposición común a todos los spritesheets de pájaros: cuadrícula 4x4 de frames de 64x64. */
+/** Disposición común a todos los spritesheets de pájaros: cuadrícula 4x4 de frames de 256x256. */
 object BirdSheet {
-    /** Lado de un frame en texels; los tamaños en pantalla son múltiplos enteros. */
-    const val FRAME_SIZE = 64
+    /** Lado de un frame en píxeles de la hoja (sprites de alta resolución). */
+    const val FRAME_SIZE = 256
+
+    /**
+     * Rejilla lógica de diseño de un frame: las coordenadas de detalles superpuestos (p. ej.
+     * las manchas de suciedad) se expresan en esta rejilla de 64 unidades.
+     */
+    const val DESIGN_GRID = 64
+
+    /** Los sprites de pájaro se escalan con suavizado (no son pixel art de texel grande). */
+    val FILTER = FilterQuality.Medium
     const val COLUMNS = 4
 
     /** Índice de fila de cada animación en la hoja. */
@@ -43,9 +55,11 @@ val PetSpecies.label: String
         PetSpecies.hummingbird -> "Colibrí"
         PetSpecies.magpie -> "Urraca"
         PetSpecies.redRobin -> "Petirrojo"
-        PetSpecies.stellersJay -> "Chara"
+        PetSpecies.beeEater -> "Abejaruco"
         PetSpecies.whiteDove -> "Paloma blanca"
         PetSpecies.woodThrush -> "Zorzal"
+        PetSpecies.kestrel -> "Cernícalo"
+        PetSpecies.chucao -> "Chucao"
     }
 
 val PetSpecies.sheet: DrawableResource
@@ -60,9 +74,11 @@ val PetSpecies.sheet: DrawableResource
         PetSpecies.hummingbird -> Res.drawable.pet_hummingbird
         PetSpecies.magpie -> Res.drawable.pet_magpie
         PetSpecies.redRobin -> Res.drawable.pet_red_robin
-        PetSpecies.stellersJay -> Res.drawable.pet_stellers_jay
+        PetSpecies.beeEater -> Res.drawable.pet_bee_eater
         PetSpecies.whiteDove -> Res.drawable.pet_white_dove
         PetSpecies.woodThrush -> Res.drawable.pet_wood_thrush
+        PetSpecies.kestrel -> Res.drawable.pet_kestrel
+        PetSpecies.chucao -> Res.drawable.pet_chucao
     }
 
 /** Tamaño relativo al dibujarla: el polluelo es más pequeño que los adultos. */

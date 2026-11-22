@@ -23,7 +23,7 @@ fun main() {
         Window(
             onCloseRequest = {
                 // Asegura que los últimos cambios lleguen al disco antes de salir.
-                controller.roster.value?.let { runBlocking { repository.save(it) } }
+                controller.gameState.value?.let { runBlocking { repository.save(it) } }
                 exitApplication()
             },
             title = "Pet Battle",

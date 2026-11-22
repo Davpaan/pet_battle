@@ -1,25 +1,22 @@
 package com.petbattle.features.pet.presentation
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Egg
-import androidx.compose.material.icons.filled.Landscape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -29,35 +26,60 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.petbattle.core.ui.GameIcon
+import com.petbattle.core.ui.GameIconImage
+import com.petbattle.core.ui.GameUi
+import com.petbattle.core.ui.WoodButton
+import com.petbattle.core.ui.WoodIconButton
+import com.petbattle.core.ui.WoodPanel
 import com.petbattle.features.pet.presentation.game.BiomeScene
 import com.petbattle.features.pet.presentation.widgets.ActionBar
 import com.petbattle.features.pet.presentation.widgets.ActionBarWidth
-import com.petbattle.features.pet.presentation.widgets.BiomePickerSheet
+import com.petbattle.features.pet.presentation.widgets.CoinCounter
 import com.petbattle.features.pet.presentation.widgets.FoodPickerSheet
+import com.petbattle.features.pet.presentation.widgets.GameMenuDrawer
+import com.petbattle.features.pet.presentation.widgets.LevelBadge
+import com.petbattle.features.pet.presentation.widgets.MenuTab
 import com.petbattle.features.pet.presentation.widgets.PetNameDialog
-import com.petbattle.features.pet.presentation.widgets.TopBar
+import com.petbattle.features.pet.presentation.widgets.StatsPanel
+import com.petbattle.shared_features.biomes.presentation.label
 import com.petbattle.shared_features.pet_food.presentation.label
 import com.petbattle.shared_features.pet_species.presentation.label
 import com.petbattle.shared_features.pet_status.application.PetController
 import com.petbattle.shared_features.pet_status.domain.FeedResult
+import com.petbattle.shared_features.pet_status.domain.GameRules
+import com.petbattle.shared_features.pet_status.domain.PetHiddenStats
+import com.petbattle.shared_features.pet_status.domain.entities.PetEntity
 import kotlinx.coroutines.delay
 
+/** Lo que ocupa el botón del menú de juego (la escena deja ese hueco libre a la derecha). */
+private val MenuButtonSize = 68.dp
+
 /**
- * Pantalla principal. El jugador elige un bioma (nunca una especie); en él cría polluelos que
- * crecen según lo que comen. Muestra la mascota activa del bioma, su estado y las acciones.
+ * Pantalla principal. El jugador empieza en la pradera y compra huevos y biomas con el oro de
+ * los combates (nunca elige especie); los polluelos crecen según lo que comen.
+ *
+ * Distribución del HUD sobre la escena del bioma:
+ * - arriba a la izquierda, las monedas;
+ * - arriba en el centro, el nivel de la mascota seleccionada;
+ * - arriba a la derecha, sus estados (desplegable, con scroll);
+ * - abajo a la izquierda, la columna de acciones;
+ * - abajo a la derecha, el botón del menú de juego (cajón con "Huevos" y "Biomas").
+ *
  * El único lugar donde se encuentran el controlador y la escena.
  */
 @Composable
 fun PetScreen(controller: PetController, onDefend: () -> Unit) {
-    val roster by controller.roster.collectAsState()
-    var biomePicker by remember { mutableStateOf<String?>(null) } // título de la hoja, null = cerrada
+    val gameState by controller.gameState.collectAsState()
+    var menuOpen by remember { mutableStateOf(false) }
+    var menuTab by remember { mutableStateOf(MenuTab.eggs) }
     var naming by remember { mutableStateOf(false) }
     var choosingFood by remember { mutableStateOf(false) }
-    var feedback by remember { mutableStateOf<String?>(null) } // aviso tras ofrecer comida
+    var confirmRelease by remember { mutableStateOf<PetEntity?>(null) }
+    var feedback by remember { mutableStateOf<String?>(null) } // aviso breve (comida, compras...)
 
     // El aviso desaparece solo al cabo de un rato.
     LaunchedEffect(feedback) {
@@ -67,85 +89,98 @@ fun PetScreen(controller: PetController, onDefend: () -> Unit) {
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
-        val current = roster
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val screenHeight = maxHeight
+        val current = gameState
         val biome = current?.currentBiome
         val pet = current?.active
-        when {
-            current == null -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
-            biome == null -> {
-                Box(Modifier.fillMaxSize().padding(0.dp)) {
-                    Canvas(Modifier.fillMaxSize()) { drawRect(Color(0xFFBFE6FF)) }
-                    PromptCard(
-                        title = "¡Bienvenido!",
-                        text = "Elige el bioma donde criarás tus mascotas.",
-                        button = "Elegir bioma",
-                        icon = Icons.Filled.Landscape,
-                        onClick = { biomePicker = "Elige un bioma" },
-                        modifier = Modifier.align(Alignment.Center),
-                    )
-                }
-            }
-            else -> {
-                BiomeScene(
-                    biome = biome,
-                    pets = current.biomePets,
-                    activeId = current.activeId,
-                    // Tocar una mascota la selecciona y la mima.
-                    onPetTapped = { id ->
-                        if (id != current.activeId) controller.switchTo(id)
-                        controller.cuddle()
-                    },
-                    modifier = Modifier.fillMaxSize(),
-                    walkEndInset = if (pet != null) ActionBarWidth else 0.dp,
-                )
-                if (pet == null) {
-                    PromptCard(
-                        title = "Este bioma está vacío",
-                        text = "Cría un polluelo: lo que le des de comer decidirá en qué pájaro se convierte.",
-                        button = "Nueva mascota",
-                        icon = Icons.Filled.Egg,
-                        onClick = { naming = true },
-                        modifier = Modifier.align(Alignment.Center),
-                    )
-                }
-                Row(Modifier.fillMaxSize().safeDrawingPadding(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f).fillMaxHeight()) {
-                        TopBar(
-                            biome = biome,
-                            pet = pet,
-                            onNewPet = { naming = true },
-                            onChangeBiome = { biomePicker = "Cambiar de bioma" },
-                            onRelease = { controller.release(it.id) },
-                        )
-                        Spacer(Modifier.weight(1f))
-                        feedback?.let { FeedbackBubble(it, Modifier.align(Alignment.CenterHorizontally).padding(bottom = 16.dp)) }
-                    }
-                    if (pet != null) {
-                        ActionBar(
-                            pet = pet,
-                            onFeed = { choosingFood = true },
-                            onToggleSleep = controller::toggleSleep,
-                            onClean = controller::clean,
-                            onDefend = onDefend,
-                        )
-                    }
-                }
+        if (current == null || biome == null) {
+            // Sin bioma solo mientras carga (la partida nueva y las migradas siempre tienen uno).
+            Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
+            return@BoxWithConstraints
+        }
+
+        fun openMenu(tab: MenuTab) {
+            menuTab = tab
+            menuOpen = true
+        }
+
+        // Compra un huevo si alcanza el oro; si no, avisa de cuánto falta.
+        fun requestEgg() {
+            val missing = GameRules.goldMissingForEgg(current)
+            if (missing == 0) {
+                menuOpen = false
+                naming = true
+            } else {
+                feedback = "Te faltan $missing de oro para un huevo (cuesta ${GameRules.EGG_PRICE})"
             }
         }
 
-        val title = biomePicker
-        if (title != null && current != null) {
-            BiomePickerSheet(
-                roster = current,
-                title = title,
-                onPicked = { picked ->
-                    biomePicker = null
-                    controller.enterBiome(picked)
-                },
-                onDismiss = { biomePicker = null },
+        BiomeScene(
+            biome = biome,
+            pets = current.biomePets,
+            activeId = current.activeId,
+            // Tocar una mascota la selecciona y la mima.
+            onPetTapped = { id ->
+                if (id != current.activeId) controller.switchTo(id)
+                controller.cuddle()
+            },
+            modifier = Modifier.fillMaxSize(),
+            walkStartInset = if (pet != null) ActionBarWidth else 0.dp,
+            walkEndInset = MenuButtonSize,
+        )
+
+        Box(Modifier.fillMaxSize().safeDrawingPadding().padding(8.dp)) {
+            CoinCounter(current.gold, onShop = { openMenu(MenuTab.eggs) }, Modifier.align(Alignment.TopStart))
+            if (pet != null) {
+                LevelBadge(pet, Modifier.align(Alignment.TopCenter))
+                StatsPanel(
+                    pet = pet,
+                    socialization = PetHiddenStats.socialization(pet, current),
+                    onRelease = { confirmRelease = pet },
+                    // Acaba por encima del botón del menú; si no cabe, hace scroll.
+                    modifier = Modifier.align(Alignment.TopEnd).heightIn(max = screenHeight - MenuButtonSize - 40.dp),
+                )
+                ActionBar(
+                    pet = pet,
+                    onFeed = { choosingFood = true },
+                    onToggleSleep = controller::toggleSleep,
+                    onClean = controller::clean,
+                    onDefend = onDefend,
+                    modifier = Modifier.align(Alignment.BottomStart),
+                )
+            } else {
+                EmptyBiomeCard(
+                    eggPrice = GameRules.eggPrice(current),
+                    onBuyEgg = ::requestEgg,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+            }
+            WoodIconButton(
+                GameIcon.Menu, "Menú de juego", { openMenu(menuTab) },
+                Modifier.align(Alignment.BottomEnd), size = MenuButtonSize,
             )
+            feedback?.let { FeedbackBubble(it, Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp)) }
         }
+
+        GameMenuDrawer(
+            open = menuOpen,
+            tab = menuTab,
+            gameState = current,
+            onTab = { menuTab = it },
+            onBuyEgg = ::requestEgg,
+            onPickBiome = { picked ->
+                menuOpen = false
+                when {
+                    current.isUnlocked(picked) -> controller.enterBiome(picked)
+                    controller.buyBiome(picked) -> feedback = "¡Has desbloqueado ${picked.label.lowercase()}!"
+                    else -> feedback = "Te faltan ${GameRules.BIOME_PRICE - current.gold} de oro para " +
+                        "desbloquear ${picked.label.lowercase()} (cuesta ${GameRules.BIOME_PRICE})"
+                }
+            },
+            onClose = { menuOpen = false },
+        )
+
         if (choosingFood && pet != null) {
             FoodPickerSheet(
                 petName = pet.name,
@@ -153,9 +188,10 @@ fun PetScreen(controller: PetController, onDefend: () -> Unit) {
                     choosingFood = false
                     feedback = when (controller.feed(food)) {
                         FeedResult.eaten -> "¡A ${pet.name} le encanta! Ñam ñam"
-                        FeedResult.rejected -> "${pet.name} rechaza ${food.label.lowercase()}"
+                        FeedResult.overate -> "${pet.name} come sin hambre: le sienta mal"
+                        FeedResult.disliked -> "${pet.name} se come ${food.label.lowercase()} a disgusto: no le sacia y le sienta mal"
                         FeedResult.grew -> {
-                            val adult = controller.roster.value?.active?.species
+                            val adult = controller.gameState.value?.active?.species
                             "¡${pet.name} ha crecido! Ahora es: ${adult?.label ?: "?"}"
                         }
                         null -> null
@@ -164,49 +200,61 @@ fun PetScreen(controller: PetController, onDefend: () -> Unit) {
                 onDismiss = { choosingFood = false },
             )
         }
-        if (naming && biome != null) {
+        if (naming) {
             PetNameDialog(
                 biome = biome,
+                price = GameRules.eggPrice(current),
                 submit = { name -> controller.hatch(name) },
                 onDismiss = { naming = false },
+            )
+        }
+        confirmRelease?.let { target ->
+            AlertDialog(
+                onDismissRequest = { confirmRelease = null },
+                title = { Text("¿Liberar a ${target.name}?") },
+                text = { Text("Volará libre y no volverá. No se puede deshacer.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            confirmRelease = null
+                            controller.release(target.id)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    ) { Text("Liberar") }
+                },
+                dismissButton = { TextButton(onClick = { confirmRelease = null }) { Text("Cancelar") } },
             )
         }
     }
 }
 
-/** Aviso breve sobre la barra de acciones (p. ej. si le gustó la comida). */
+/** Aviso breve en la parte de abajo (p. ej. si le gustó la comida). */
 @Composable
 private fun FeedbackBubble(text: String, modifier: Modifier = Modifier) {
-    Surface(
-        modifier = modifier.padding(horizontal = 16.dp),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.inverseSurface,
-        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-    ) {
-        Text(text, Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
+    WoodPanel(modifier.padding(horizontal = 90.dp), shape = RoundedCornerShape(50)) {
+        Text(text, style = GameUi.text(15.sp), textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp))
     }
 }
 
-/** Tarjeta central con una llamada a la acción (primer bioma, bioma vacío). */
+/** Bioma sin mascotas: invita a comprar (o estrenar gratis) un huevo. */
 @Composable
-private fun PromptCard(
-    title: String,
-    text: String,
-    button: String,
-    icon: ImageVector,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Card(modifier.padding(24.dp)) {
-        Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(8.dp))
-            Text(text, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(16.dp))
-            Button(onClick = onClick) {
-                Icon(icon, contentDescription = null)
-                Text("  $button")
-            }
+private fun EmptyBiomeCard(eggPrice: Int, onBuyEgg: () -> Unit, modifier: Modifier = Modifier) {
+    WoodPanel(modifier.padding(24.dp)) {
+        Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            GameIconImage(GameIcon.Egg, 72.dp)
+            Text("Este bioma está vacío", style = GameUi.text(22.sp))
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Cría un polluelo: lo que le des de comer decidirá en qué pájaro se convierte.",
+                style = GameUi.text(14.sp),
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(14.dp))
+            WoodButton(
+                if (eggPrice == 0) "Nueva mascota (gratis)" else "Nueva mascota · $eggPrice de oro",
+                onBuyEgg,
+                icon = GameIcon.Egg,
+            )
         }
     }
 }

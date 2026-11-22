@@ -15,11 +15,11 @@ enum class PetType { light, darkness, elemental }
 val PetSpecies.element: PetElement
     get() = when (this) {
         PetSpecies.chick -> PetElement.earth
-        PetSpecies.cardinal, PetSpecies.houseFinch -> PetElement.fire
+        PetSpecies.cardinal, PetSpecies.houseFinch, PetSpecies.kestrel -> PetElement.fire
         PetSpecies.woodThrush -> PetElement.water
         PetSpecies.crow, PetSpecies.magpie, PetSpecies.redRobin -> PetElement.earth
         PetSpecies.blueJay, PetSpecies.cedarWaxwing, PetSpecies.chickadee,
-        PetSpecies.hummingbird, PetSpecies.stellersJay, PetSpecies.whiteDove,
+        PetSpecies.hummingbird, PetSpecies.beeEater, PetSpecies.whiteDove, PetSpecies.chucao,
         -> PetElement.air
     }
 

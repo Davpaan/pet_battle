@@ -23,6 +23,9 @@ import org.jetbrains.skia.Image
 import java.io.File
 import kotlin.random.Random
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -45,6 +48,41 @@ class DefenseVisualTest {
     )
 
     @Test
+    fun setupPhaseLetsYouPlaceAndMovePetsUntilYouPressStart() {
+        val game = DefenseGame(jungleCampMap, {}, {}, Random(1))
+        val (a, b) = listOf(PetSpecies.crow to "A", PetSpecies.cardinal to "B").map { (s, n) -> PetEntity.newborn(n, s, 0) }
+        game.updatePets(listOf(a, b))
+        assertFalse(game.canStart)
+        game.tapAt(Offset(1262f, 539f)) // coloca A (la primera seleccionada)
+        game.tapAt(Offset(1000f, 540f)) // coloca B
+        assertEquals(2, game.defenders.size)
+        assertTrue(game.canStart)
+        // Tocar a A la recoge; tocar hierba la mueve; tocarla otra vez sin mover la suelta.
+        game.tapAt(Offset(1262f, 500f))
+        assertEquals(a.id, game.editingId)
+        game.tapAt(Offset(700f, 560f))
+        assertNull(game.editingId)
+        assertEquals(Offset(700f, 560f), game.defenders.getValue(a.id).foot)
+        game.tapAt(Offset(700f, 520f))
+        game.tapAt(Offset(700f, 520f))
+        assertNull(game.editingId)
+        // Antes de empezar no aparecen enemigos.
+        repeat(120) { game.update(1.0 / 60) }
+        assertTrue(game.enemies.isEmpty())
+        game.start()
+        assertTrue(game.running)
+        // En combate ya no se puede mover a nadie.
+        game.tapAt(Offset(700f, 520f))
+        assertNull(game.editingId)
+        repeat(120) { game.update(1.0 / 60) }
+        assertTrue(game.enemies.isNotEmpty())
+        // Reintentar vuelve a la preparación con los pájaros donde estaban.
+        game.restart()
+        assertFalse(game.started)
+        assertEquals(Offset(700f, 560f), game.defenders.getValue(a.id).foot)
+    }
+
+    @Test
     fun rendersAFullRun() {
         var killed = 0
         var shots = 0
@@ -60,6 +98,7 @@ class DefenseVisualTest {
         val spots = listOf(Offset(1262f, 539f), Offset(1000f, 540f), Offset(700f, 560f), Offset(440f, 540f))
         pets.zip(spots).forEach { (p, at) -> game.selectPet(p.id); game.placePetAt(at) }
         assertTrue(game.defenders.size == 4, "all four pets placed")
+        game.start()
 
         val out = File("build/visual").apply { mkdirs() }
         for ((i, seconds) in listOf(6, 14, 22).withIndex()) {

@@ -66,7 +66,7 @@ private const val GROUND = 0.93f
  * al posarse no pueden quedar una encima de otra: si el sitio está ocupado, sigue de largo
  * o se da la vuelta. Tocar una mascota la selecciona ([onPetTapped]). La mascota activa
  * ([activeId]) se dibuja delante y con su nombre resaltado; si duerme, se hace de noche.
- * [walkEndInset] deja libre a la derecha el espacio que ocupen los botones.
+ * [walkStartInset] y [walkEndInset] dejan libre a cada lado el espacio que ocupen los botones.
  */
 @Composable
 fun BiomeScene(
@@ -75,6 +75,7 @@ fun BiomeScene(
     activeId: String?,
     onPetTapped: (String) -> Unit,
     modifier: Modifier = Modifier,
+    walkStartInset: Dp = 0.dp,
     walkEndInset: Dp = 0.dp,
 ) {
     val backdrop = imageResource(biome.background)
@@ -109,7 +110,7 @@ fun BiomeScene(
     ) {
         frame // se lee para que cada frame se redibuje
         drawBiomeBackdrop(backdrop, state.nightT.toFloat())
-        state.layout(size, walkEndInset.toPx())
+        state.layout(size, walkStartInset.toPx(), walkEndInset.toPx())
         // La activa al final: queda delante de las demás.
         val ordered = pets.sortedBy { it.id == activeId }
         for (pet in ordered) {
@@ -174,18 +175,16 @@ private class BiomeSceneState {
     var walkLeft = 0f
     var walkWidth = 1f
     var groundY = 0f
-    var texelScale = 2
 
     /** Distancia mínima (en fracción de la zona de paseo) entre dos mascotas posadas. */
     var gap = 0.15
 
-    fun layout(size: Size, endInset: Float) {
+    fun layout(size: Size, startInset: Float, endInset: Float) {
         val raw = min(size.width * 0.3f, size.height * 0.24f)
-        texelScale = max(2, (raw / BirdSheet.FRAME_SIZE).roundToInt())
-        slotSide = (texelScale * BirdSheet.FRAME_SIZE).toFloat()
+        slotSide = raw
         val margin = slotSide * 0.1f
-        walkLeft = margin
-        walkWidth = max(1f, size.width - endInset - 2 * margin - slotSide)
+        walkLeft = startInset + margin
+        walkWidth = max(1f, size.width - startInset - endInset - 2 * margin - slotSide)
         groundY = size.height * GROUND
         gap = (slotSide * 0.85f / walkWidth).toDouble()
     }
@@ -306,15 +305,14 @@ private class BiomeSceneState {
     }
 }
 
-// Salpicaduras de barro en coordenadas de texel del frame de 64px (pose de pie).
+// Salpicaduras de barro en la rejilla de diseño de 64 unidades del frame (pose de pie).
 private val DirtSplats = listOf(28 to 40, 36 to 37, 22 to 31, 32 to 45, 41 to 47, 24 to 44, 17 to 27, 45 to 53)
 private val SplatShape = listOf(1 to 0, 2 to 0, 0 to 1, 1 to 1, 2 to 1, 3 to 1, 1 to 2, 2 to 2, 3 to 2)
 private val SplatCore = listOf(1 to 1, 2 to 1, 2 to 2)
 
 private fun DrawScope.drawActor(state: BiomeSceneState, a: Actor, pet: PetEntity, sheet: ImageBitmap) {
-    // Un múltiplo entero del frame mantiene nítido el pixel art (sin texels desiguales).
-    val scale = max(1, (state.texelScale * pet.species.spriteScale).roundToInt())
-    val side = (scale * BirdSheet.FRAME_SIZE).toFloat()
+    // Los sprites son de alta resolución: se escalan libremente con suavizado.
+    val side = state.slotSide * pet.species.spriteScale
     val slotLeft = state.walkLeft + a.x.toFloat() * state.walkWidth
     val left = slotLeft + (state.slotSide - side) / 2
     val groundY = state.groundY
@@ -348,10 +346,10 @@ private fun DrawScope.drawActor(state: BiomeSceneState, a: Actor, pet: PetEntity
     scale(bx * (1 + b), by * (1 - b), pivot) {
         val bounds = Rect(left, topY, left + side, topY + side)
         drawIntoCanvas { it.saveLayer(bounds, Paint()) }
-        drawSpriteFrame(sheet, BirdSheet.FRAME_SIZE, col, row, Offset(left, topY), side, flipX = a.facingRight, colorFilter = filter)
+        drawSpriteFrame(sheet, BirdSheet.FRAME_SIZE, col, row, Offset(left, topY), side, flipX = a.facingRight, colorFilter = filter, filterQuality = BirdSheet.FILTER)
         if (dirtiness > 0) {
             // SrcAtop: la suciedad solo cae sobre los píxeles del propio pájaro.
-            val texel = side / BirdSheet.FRAME_SIZE
+            val texel = side / BirdSheet.DESIGN_GRID
             val alpha = (0.55 + dirtiness * 0.4).toFloat()
             val count = ceil(dirtiness * DirtSplats.size).toInt()
             fun splat(points: List<Pair<Int, Int>>, color: Color, sx: Int, sy: Int) {

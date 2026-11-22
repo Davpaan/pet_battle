@@ -41,6 +41,32 @@ object PetStatusBalance {
     /** Energía gastada por cada disparo de la mascota. */
     const val ENERGY_PER_SHOT = 1.0
 
+    // --- Estadísticas avanzadas -------------------------------------------------------
+
+    /**
+     * Una necesidad está "pendiente" por debajo de esto: comer con la saciedad por debajo es
+     * comer con hambre; atender una necesidad pendiente cuenta como cuidarla (confianza).
+     */
+    const val NEED_THRESHOLD = 75.0
+
+    // Digestión: comer mal la baja, pero siempre es temporal (se recupera sola con el tiempo).
+    const val DIGESTION_GOOD_MEAL = 8.0 // su comida, con hambre
+    const val DIGESTION_DISLIKED_FOOD = 15.0 // comida que no es de su dieta
+    const val DIGESTION_OVEREATING = 10.0 // comer sin hambre
+    const val DIGESTION_RECOVERY_PER_HOUR = 20.0 // de vacía a llena en ~5 h
+
+    // Pico y garras.
+    const val BEAK_DECAY_PER_HOUR = 6.0 // sin luchar se van oxidando
+    const val BEAK_PER_SHOT = 0.5 // cada disparo los afila
+
+    // Confianza: crece despacio al cuidarla y baja si se la descuida.
+    const val INITIAL_TRUST = 30.0
+    const val TRUST_PER_CARE = 1.0 // dar de comer con hambre, limpiar, acostarla cansada
+    const val TRUST_PER_CUDDLE = 0.2 // mimarla cuando está baja de ánimo (es fácil repetirlo)
+
+    /** Pérdida de confianza por hora por cada estadística descuidada (ver NEGLECT_THRESHOLD). */
+    const val TRUST_NEGLECT_PER_HOUR = 3.0
+
     /** Granularidad (ms) y límite (ms) de la puesta al día sin conexión. */
     const val SIMULATION_STEP_MS = 60_000L
     const val MAX_OFFLINE_CATCH_UP_MS = 7L * 24 * 3600 * 1000

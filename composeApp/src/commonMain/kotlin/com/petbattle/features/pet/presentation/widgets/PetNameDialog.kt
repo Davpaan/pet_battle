@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -26,7 +27,7 @@ import com.petbattle.shared_features.biomes.presentation.label
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import com.petbattle.shared_features.pet_species.presentation.widgets.BirdFrame
 import com.petbattle.shared_features.pet_status.domain.PetNameError
-import com.petbattle.shared_features.pet_status.domain.RosterRules
+import com.petbattle.shared_features.pet_status.domain.GameRules
 
 /**
  * Pide el nombre de un polluelo nuevo en [biome]. Una mascota no se puede guardar sin él, así
@@ -34,7 +35,7 @@ import com.petbattle.shared_features.pet_status.domain.RosterRules
  * criarlo y devuelve el motivo del fallo, o `null` si tiene éxito.
  */
 @Composable
-fun PetNameDialog(biome: Biome, submit: (String) -> PetNameError?, onDismiss: () -> Unit) {
+fun PetNameDialog(biome: Biome, price: Int, submit: (String) -> PetNameError?, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<PetNameError?>(null) }
     fun trySubmit() {
@@ -51,17 +52,22 @@ fun PetNameDialog(biome: Biome, submit: (String) -> PetNameError?, onDismiss: ()
                 OutlinedTextField(
                     value = name,
                     onValueChange = {
-                        if (it.length <= RosterRules.MAX_NAME_LENGTH) name = it
+                        if (it.length <= GameRules.MAX_NAME_LENGTH) name = it
                         error = null
                     },
                     label = { Text("Nombre") },
                     singleLine = true,
                     isError = error != null,
-                    supportingText = { Text(error?.message ?: "${name.length}/${RosterRules.MAX_NAME_LENGTH}") },
+                    supportingText = { Text(error?.message ?: "${name.length}/${GameRules.MAX_NAME_LENGTH}") },
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { trySubmit() }),
                 )
                 Text("Lo que le des de comer decidirá en qué pájaro se convierte.", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    if (price == 0) "Este huevo es gratis." else "El huevo cuesta $price de oro.",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
+                )
             }
         },
         confirmButton = { Button(onClick = ::trySubmit) { Text("Guardar") } },
@@ -71,6 +77,6 @@ fun PetNameDialog(biome: Biome, submit: (String) -> PetNameError?, onDismiss: ()
 
 val PetNameError.message get() = when (this) {
     PetNameError.empty -> "Ponle un nombre para poder guardarla"
-    PetNameError.tooLong -> "Máximo ${RosterRules.MAX_NAME_LENGTH} caracteres"
+    PetNameError.tooLong -> "Máximo ${GameRules.MAX_NAME_LENGTH} caracteres"
     PetNameError.taken -> "Ya tienes una mascota con ese nombre"
 }

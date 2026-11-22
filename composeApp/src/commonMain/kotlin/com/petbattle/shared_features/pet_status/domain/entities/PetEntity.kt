@@ -52,7 +52,7 @@ data class PetEntity(
             biome = biome,
         )
 
-        /** Un polluelo recién nacido en [biome]; [id] debe ser único en el plantel. */
+        /** Un polluelo recién nacido en [biome]; [id] debe ser único en la partida. */
         fun hatch(name: String, biome: Biome, now: Long, id: String) =
             newborn(name, PetSpecies.chick, now, id = id, biome = biome)
     }

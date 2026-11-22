@@ -1,7 +1,7 @@
 # Pet Battle
 
 Port a **Kotlin Multiplatform + Compose Multiplatform** del juego Mini Pou
-(Flutter): una mascota virtual con 12 especies de pájaro y un modo
+(Flutter): una mascota virtual con 14 especies de pájaro y un modo
 **defender la torre** donde las mascotas que has criado combaten contra
 babosas usando la habilidad de su elemento.
 
@@ -35,11 +35,12 @@ La partida se guarda sola: en Android en SharedPreferences y en escritorio en
 
 ## Cómo se juega
 
-- **Biomas**: al empezar eliges un bioma (bosque, pradera, montaña, coníferas, prado,
-  tundra, tierras altas o costa); nunca eliges la especie. Desde el menú superior puedes
-  criar una **nueva mascota** en el bioma actual o ir a **otro bioma** (si es nuevo, empieza
-  vacío). Varias mascotas pueden convivir en un bioma y puedes volver a cualquiera cuando
-  quieras.
+- **Biomas**: empiezas en la **pradera**, que viene gratis; nunca eliges la especie. El resto
+  de biomas (bosque, montaña, coníferas, prado, tundra, tierras altas y costa) están
+  bloqueados y cuestan **20 de oro** cada uno. Varias mascotas conviven en un bioma y puedes
+  volver a cualquiera de los comprados cuando quieras.
+- **Oro**: cada enemigo derrotado en el modo defensa da **1 moneda de oro**. Un huevo nuevo
+  cuesta **10 de oro** (el primero es gratis).
 - **Polluelos**: toda mascota nace como polluelo (hay que ponerle nombre). Come de todo y,
   tras 10 comidas, crece en una especie adulta de su bioma que coma su comida favorita (la
   que más veces le has dado). Si hay empate, o ninguna especie del bioma come eso, se elige
@@ -67,7 +68,7 @@ composeApp/src/
       pet_skills/              domain/entities (PetSkillsEntity, PetSkillEntity,
                                SkillEffectEntity), rasgos, progresión, catálogo
       pet_status/              domain/entities (PetEntity, PetStatusEntity,
-                               PetRosterEntity), reglas, efectos de combate,
+                               GameStateEntity), reglas, efectos de combate,
                                repositorio y controlador (StateFlow)
     features/
       pet/                     pantalla de la mascota (escena en Canvas + UI)

@@ -25,6 +25,12 @@ data class DefenseHudState(
     val placedIds: Set<String> = emptySet(),
     /** Mascota que colocará el próximo toque en el mapa; null si ya están todas colocadas. */
     val selectedId: String? = null,
+    /** Mascota ya colocada que se está recolocando (se dibuja semitransparente). */
+    val editingId: String? = null,
+    /** false = fase de preparación (colocar y mover); true = combate en marcha. */
+    val started: Boolean = false,
+    /** Se puede pulsar "Empezar": preparación con al menos una mascota colocada. */
+    val canStart: Boolean = false,
     val seconds: Int = 0,
     val speedMultiplier: Double = 1.0,
     val kills: Int = 0,
@@ -35,9 +41,11 @@ data class DefenseHudState(
 /**
  * Simulación de tower defense. Las coordenadas del mundo son píxeles del mapa.
  *
- * Flujo: el jugador elige una de sus mascotas criadas y toca un punto de hierba
- * para colocarla; cada mascota criada se puede colocar una vez. La partida empieza
- * con la primera colocación: los enemigos aparecen y recorren las rutas, cada vez
+ * Flujo: primero hay una fase de preparación. El jugador elige una de sus mascotas y toca
+ * un punto de hierba para colocarla (cada mascota se coloca una vez); tocando una ya
+ * colocada la recoge para recolocarla con el siguiente toque ([tapAt]). El combate empieza
+ * al pulsar "Empezar" ([start]): ya no se puede mover a nadie, los enemigos aparecen y
+ * recorren las rutas, cada vez
  * más rápido cada [DefenseBalance.SPEED_STEP_SECONDS], mientras que la velocidad
  * de ataque, el daño y la precisión de cada mascota dependen de su estado. Cada
  * enemigo derrotado informa de la mascota que lo remató ([onEnemyKilledBy]); cada
@@ -60,17 +68,30 @@ class DefenseGame(
     var selectedId: String? = null
         private set
 
+    /** Mascota colocada que se está recolocando; el próximo toque en hierba la mueve. */
+    var editingId: String? = null
+        private set
+
     /** Últimas instantáneas del controlador (nivel y energía cambian al combatir). */
     fun updatePets(value: List<PetEntity>) {
         pets = value.associateBy { it.id }
         petOrder = value.map { it.id }
         defenders.values.forEach { d -> pets[d.pet.id]?.let { d.updatePet(it, this) } }
-        if (selectedId == null || selectedId !in pets) selectedId = firstUnplaced()
+        if (!started && (selectedId == null || selectedId !in pets)) selectedId = firstUnplaced()
     }
 
-    /** Elige qué mascota coloca el próximo toque en el mapa. */
+    /**
+     * Elige en la barra qué mascota coloca el próximo toque en el mapa. Si ya está colocada,
+     * la recoge para recolocarla. Solo en la fase de preparación.
+     */
     fun selectPet(petId: String) {
-        if (petId in pets && petId !in defenders) selectedId = petId
+        if (started || petId !in pets) return
+        if (petId in defenders) {
+            editingId = if (editingId == petId) null else petId
+        } else {
+            selectedId = petId
+            editingId = null
+        }
     }
 
     private fun firstUnplaced() = petOrder.firstOrNull { it !in defenders }
@@ -93,13 +114,19 @@ class DefenseGame(
     var gameOver = false
         private set
 
-    val running get() = defenders.isNotEmpty() && !gameOver
+    /** Se ha pulsado "Empezar": se acabó la preparación. */
+    var started = false
+        private set
+
+    val running get() = started && !gameOver
+
+    val canStart get() = !started && defenders.isNotEmpty()
 
     /** Velocidad actual de cada enemigo en el mapa (px de mapa/s). */
     val enemySpeed get() = DefenseRules.enemySpeed(elapsed)
 
-    /** El tinte verde de "aquí puedes colocarla" se muestra mientras una mascota espera ser colocada. */
-    val showPlacement get() = !gameOver && selectedId in pets
+    /** El tinte verde de "aquí puedes colocarla": en preparación, con una mascota por colocar o recolocar. */
+    val showPlacement get() = !started && !gameOver && (editingId != null || selectedId in pets)
 
     /** Celdas de hierba donde cabe la huella de una mascota (para el tinte de colocación). */
     val placeableCells: List<Rect> by lazy {
@@ -118,6 +145,9 @@ class DefenseGame(
         get() = DefenseHudState(
             placedIds = defenders.keys.toSet(),
             selectedId = selectedId,
+            editingId = editingId,
+            started = started,
+            canStart = canStart,
             seconds = floor(elapsed).toInt(),
             speedMultiplier = DefenseRules.speedMultiplier(elapsed),
             kills = kills,
@@ -125,17 +155,53 @@ class DefenseGame(
             gameOver = gameOver,
         )
 
+    /**
+     * Un toque en el mapa durante la preparación: sobre una mascota colocada la recoge (o la
+     * suelta si ya estaba recogida); en hierba mueve la recogida o coloca la seleccionada.
+     */
+    fun tapAt(p: Offset) {
+        if (started || gameOver) return
+        val touched = defenders.values.lastOrNull { it.contains(p) }
+        when {
+            touched != null -> editingId = if (editingId == touched.pet.id) null else touched.pet.id
+            editingId != null -> moveEditingTo(p)
+            else -> placePetAt(p)
+        }
+    }
+
     /** Coloca la mascota seleccionada centrada en [p] si ese punto es hierba libre. */
     fun placePetAt(p: Offset) {
         val pet = pets[selectedId] ?: return
-        if (gameOver) return
-        val free = defenders.values.all { (it.foot - p).getDistance() >= DefenseBalance.PET_FOOTPRINT_RADIUS * 2 }
-        if (!free || !map.canPlace(MapPoint(p.x.toDouble(), p.y.toDouble()), DefenseBalance.PET_FOOTPRINT_RADIUS)) {
+        if (started || gameOver) return
+        if (!isFreeGrass(p, exceptId = null)) {
             markers += InvalidMarker(p)
             return
         }
         defenders[pet.id] = Defender(pet, p)
         selectedId = firstUnplaced()
+    }
+
+    private fun moveEditingTo(p: Offset) {
+        val d = defenders[editingId] ?: run { editingId = null; return }
+        if (!isFreeGrass(p, exceptId = d.pet.id)) {
+            markers += InvalidMarker(p)
+            return
+        }
+        defenders[d.pet.id] = Defender(d.pet, p)
+        editingId = null
+    }
+
+    private fun isFreeGrass(p: Offset, exceptId: String?): Boolean {
+        val free = defenders.values.all { it.pet.id == exceptId || (it.foot - p).getDistance() >= DefenseBalance.PET_FOOTPRINT_RADIUS * 2 }
+        return free && map.canPlace(MapPoint(p.x.toDouble(), p.y.toDouble()), DefenseBalance.PET_FOOTPRINT_RADIUS)
+    }
+
+    /** Termina la preparación y empieza el combate (hace falta al menos una mascota colocada). */
+    fun start() {
+        if (!canStart) return
+        started = true
+        editingId = null
+        selectedId = null
     }
 
     fun update(dt: Double) {
@@ -184,15 +250,19 @@ class DefenseGame(
         onPetFired(defender.pet.id)
     }
 
-    /** Limpia el mapa y vuelve al paso de colocación. */
+    /** Limpia el mapa y vuelve a la preparación, con las mascotas donde estaban. */
     fun restart() {
+        val placed = defenders.values.map { it.pet to it.foot }
         defenders.clear()
+        placed.forEach { (pet, foot) -> defenders[pet.id] = Defender(pets[pet.id] ?: pet, foot) }
         enemies.clear()
         projectiles.clear()
         effects.clear()
         texts.clear()
         markers.clear()
         selectedId = firstUnplaced()
+        editingId = null
+        started = false
         elapsed = 0.0
         spawnIn = 0.5
         nextRoute = 0
@@ -218,6 +288,10 @@ class Defender(pet: PetEntity, val foot: Offset) {
         private set
     var shotAge = 1.0
         private set
+
+    /** Si [p] cae sobre el sprite (para recogerla con un toque). */
+    fun contains(p: Offset) =
+        p.x in (position.x - SIZE / 2)..(position.x + SIZE / 2) && p.y in (position.y - SIZE)..(position.y + 8f)
 
     /** De dónde salen los disparos (el pecho del pájaro). */
     val muzzle get() = position - Offset(0f, SIZE * 0.45f)

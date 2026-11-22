@@ -8,8 +8,8 @@ import com.petbattle.shared_features.pet_status.domain.FeedResult
 import com.petbattle.shared_features.pet_status.domain.PetNameError
 import com.petbattle.shared_features.pet_status.domain.PetRepository
 import com.petbattle.shared_features.pet_status.domain.PetStatusRules
-import com.petbattle.shared_features.pet_status.domain.RosterRules
-import com.petbattle.shared_features.pet_status.domain.entities.PetRosterEntity
+import com.petbattle.shared_features.pet_status.domain.GameRules
+import com.petbattle.shared_features.pet_status.domain.entities.GameStateEntity
 import com.petbattle.shared_features.pet_status.domain.entities.PetStatusEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -22,11 +22,11 @@ import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 /**
- * Orquesta todas las mascotas criadas: carga el plantel, aplica la pérdida offline a
+ * Orquesta todas las mascotas criadas: carga la partida, aplica la pérdida offline a
  * la mascota activa, ejecuta su tick en vivo, traduce las intenciones del jugador en
- * llamadas a [PetStatusRules] / [RosterRules] y guarda automáticamente cada cambio.
+ * llamadas a [PetStatusRules] / [GameRules] y guarda automáticamente cada cambio.
  *
- * [roster] es `null` mientras se carga.
+ * [gameState] es `null` mientras se carga.
  */
 class PetController(
     private val repository: PetRepository,
@@ -35,24 +35,24 @@ class PetController(
     private val autoTick: Boolean = true,
     private val random: Random = Random.Default,
 ) {
-    private val _roster = MutableStateFlow<PetRosterEntity?>(null)
-    val roster: StateFlow<PetRosterEntity?> = _roster.asStateFlow()
+    private val _gameState = MutableStateFlow<GameStateEntity?>(null)
+    val gameState: StateFlow<GameStateEntity?> = _gameState.asStateFlow()
 
     private var ticker: Job? = null
     private var pendingSave: Job? = null
 
-    /** Carga la partida (o un plantel vacío) e inicia el tick en vivo. */
+    /** Carga la partida (o una partida vacía) e inicia el tick en vivo. */
     suspend fun load() {
         val now = clock.nowMillis()
         val saved = repository.load()
         if (saved == null) {
-            // Aún no hay nada criado: la UI pide una primera especie y un nombre.
-            _roster.value = PetRosterEntity.empty
+            // Partida nueva: en la pradera, con el primer huevo gratis.
+            _gameState.value = GameStateEntity.newGame
         } else {
             // Puesta al día offline (solo la mascota activa; las que descansan están congeladas).
-            val roster = RosterRules.updateActiveStatus(RosterRules.migrate(saved)) { PetStatusRules.advanceTo(it, now) }
-            repository.save(roster)
-            _roster.value = roster
+            val gameState = GameRules.advanceActive(GameRules.migrate(saved), now)
+            repository.save(gameState)
+            _gameState.value = gameState
         }
         if (autoTick) startTicker()
     }
@@ -61,8 +61,8 @@ class PetController(
 
     /** Ofrece [food] a la mascota activa; `null` si ahora no se le puede dar de comer. */
     fun feed(food: Food): FeedResult? {
-        val roster = _roster.value ?: return null
-        val (next, result) = RosterRules.feedActive(advanceActive(roster, clock.nowMillis()), food, random)
+        val gameState = _gameState.value ?: return null
+        val (next, result) = GameRules.feedActive(advanceActive(gameState, clock.nowMillis()), food, random)
         if (result != null) set(next, saveNow = result == FeedResult.grew)
         return result
     }
@@ -70,54 +70,78 @@ class PetController(
     fun clean() = applyToActive(PetStatusRules::clean)
     fun cuddle() = applyToActive(PetStatusRules::cuddle)
 
-    /** Cría un polluelo llamado [name] en el bioma actual; devuelve por qué se rechazó el nombre. */
+    /**
+     * Compra un huevo y cría un polluelo llamado [name] en el bioma actual; devuelve por qué se
+     * rechazó el nombre. Quien llama debe comprobar antes que alcanza el oro (GameRules.canHatch).
+     */
     fun hatch(name: String): PetNameError? {
-        val roster = _roster.value ?: return null
-        if (!RosterRules.canHatch(roster)) return null
-        RosterRules.validateName(roster, name)?.let { return it }
+        val gameState = _gameState.value ?: return null
+        if (!GameRules.canHatch(gameState)) return null
+        GameRules.validateName(gameState, name)?.let { return it }
         val now = clock.nowMillis()
-        set(RosterRules.hatch(advanceActive(roster, now), name, now), saveNow = true)
+        set(GameRules.hatch(advanceActive(gameState, now), name, now), saveNow = true)
         return null
     }
 
     /** Libera para siempre a la mascota [petId]. */
     fun release(petId: String) {
-        val roster = _roster.value ?: return
+        val gameState = _gameState.value ?: return
         val now = clock.nowMillis()
-        set(RosterRules.release(advanceActive(roster, now), petId, now), saveNow = true)
+        set(GameRules.release(advanceActive(gameState, now), petId, now), saveNow = true)
     }
 
-    /** Viaja a [biome] (vacío si nunca has criado allí). */
+    /** Viaja a [biome] si está comprado (vacío si nunca has criado allí). */
     fun enterBiome(biome: Biome) {
-        val roster = _roster.value ?: return
+        val gameState = _gameState.value ?: return
         val now = clock.nowMillis()
-        set(RosterRules.enterBiome(advanceActive(roster, now), biome, now), saveNow = true)
+        set(GameRules.enterBiome(advanceActive(gameState, now), biome, now), saveNow = true)
     }
 
     /** Vuelve a una mascota ya criada; la actual empieza a descansar. */
     fun switchTo(petId: String) {
-        val roster = _roster.value ?: return
+        val gameState = _gameState.value ?: return
         val now = clock.nowMillis()
-        set(RosterRules.switchTo(advanceActive(roster, now), petId, now), saveNow = true)
+        set(GameRules.switchTo(advanceActive(gameState, now), petId, now), saveNow = true)
+    }
+
+    /** Oro ganado (p. ej. enemigos derrotados). */
+    fun awardGold(amount: Int) {
+        val gameState = _gameState.value ?: return
+        set(GameRules.awardGold(gameState, amount))
+    }
+
+    /** Compra [biome] y viaja a él; `false` si no alcanza el oro (o ya estaba comprado). */
+    fun buyBiome(biome: Biome): Boolean {
+        val gameState = _gameState.value ?: return false
+        if (!GameRules.canBuyBiome(gameState, biome)) return false
+        val now = clock.nowMillis()
+        set(GameRules.enterBiome(GameRules.buyBiome(advanceActive(gameState, now), biome), biome, now), saveNow = true)
+        return true
     }
 
     /** Experiencia ganada por la mascota [petId] (p. ej. enemigos derrotados). */
     fun awardXp(petId: String, amount: Int) {
-        val roster = _roster.value ?: return
-        set(RosterRules.awardXp(roster, petId, amount))
+        val gameState = _gameState.value ?: return
+        set(GameRules.awardXp(gameState, petId, amount))
     }
 
-    /** La mascota [petId] se cansó luchando (p. ej. un disparo efectuado). */
+    /** La mascota [petId] disparó en combate: se cansa y afila el pico y las garras. */
+    fun petFired(petId: String) {
+        val gameState = _gameState.value ?: return
+        set(GameRules.petFired(gameState, petId))
+    }
+
+    /** La mascota [petId] se cansó luchando. */
     fun spendEnergy(petId: String, amount: Double) {
-        val roster = _roster.value ?: return
-        set(RosterRules.spendEnergy(roster, petId, amount))
+        val gameState = _gameState.value ?: return
+        set(GameRules.spendEnergy(gameState, petId, amount))
     }
 
     /** Ayuda de depuración: borra la partida (todas las mascotas criadas). */
     fun reset() {
         scope.launch {
             repository.clear()
-            _roster.value = PetRosterEntity.empty
+            _gameState.value = GameStateEntity.newGame
         }
     }
 
@@ -125,8 +149,8 @@ class PetController(
     fun flush() {
         pendingSave?.cancel()
         pendingSave = null
-        val roster = _roster.value ?: return
-        scope.launch { repository.save(roster) }
+        val gameState = _gameState.value ?: return
+        scope.launch { repository.save(gameState) }
     }
 
     fun dispose() {
@@ -138,17 +162,17 @@ class PetController(
 
     /** Primero actualiza el estado de la mascota activa hasta "ahora" y luego aplica [action]. */
     private fun applyToActive(action: (PetStatusEntity) -> PetStatusEntity, saveNow: Boolean = false) {
-        val roster = _roster.value ?: return
+        val gameState = _gameState.value ?: return
         val now = clock.nowMillis()
-        set(RosterRules.updateActiveStatus(roster) { action(PetStatusRules.advanceTo(it, now)) }, saveNow)
+        set(GameRules.updateActiveStatus(GameRules.advanceActive(gameState, now), action), saveNow)
     }
 
-    private fun advanceActive(roster: PetRosterEntity, now: Long) =
-        RosterRules.updateActiveStatus(roster) { PetStatusRules.advanceTo(it, now) }
+    private fun advanceActive(gameState: GameStateEntity, now: Long) =
+        GameRules.advanceActive(gameState, now)
 
-    private fun set(next: PetRosterEntity, saveNow: Boolean = false) {
-        if (next == _roster.value) return
-        _roster.value = next
+    private fun set(next: GameStateEntity, saveNow: Boolean = false) {
+        if (next == _gameState.value) return
+        _gameState.value = next
         if (saveNow) flush() else scheduleSave()
     }
 
@@ -171,7 +195,7 @@ class PetController(
         pendingSave = scope.launch {
             delay(AppConfig.SAVE_THROTTLE_MS)
             pendingSave = null
-            _roster.value?.let { repository.save(it) }
+            _gameState.value?.let { repository.save(it) }
         }
     }
 }

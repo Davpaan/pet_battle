@@ -21,10 +21,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MonetizationOn
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -70,12 +73,12 @@ import com.petbattle.resources.skill_fire
 import com.petbattle.resources.skill_water
 import com.petbattle.shared_features.pet_skills.domain.PetElement
 import com.petbattle.shared_features.pet_skills.domain.PetProgression
+import com.petbattle.shared_features.pet_status.domain.GameRules
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import com.petbattle.shared_features.pet_species.domain.isChick
 import com.petbattle.shared_features.pet_species.presentation.sheet
 import com.petbattle.shared_features.pet_species.presentation.widgets.BirdFrame
 import com.petbattle.shared_features.pet_status.application.PetController
-import com.petbattle.shared_features.pet_status.domain.PetStatusBalance
 import com.petbattle.shared_features.pet_status.domain.entities.PetEntity
 import org.jetbrains.compose.resources.imageResource
 import kotlin.math.min
@@ -90,14 +93,17 @@ import kotlin.math.roundToInt
 fun DefenseScreen(controller: PetController, onExit: () -> Unit, map: DefenseMapEntity = jungleCampMap) {
     PlatformBackHandler(onExit)
 
-    val roster by controller.roster.collectAsState()
+    val gameState by controller.gameState.collectAsState()
     // Solo combaten los adultos del bioma actual: los polluelos aún no saben luchar.
-    val pets = roster?.biomePets.orEmpty().filter { !it.species.isChick }
+    val pets = gameState?.biomePets.orEmpty().filter { !it.species.isChick }
     val game = remember {
         DefenseGame(
             map = map,
-            onEnemyKilledBy = { controller.awardXp(it, PetProgression.XP_PER_ENEMY) },
-            onPetFired = { controller.spendEnergy(it, PetStatusBalance.ENERGY_PER_SHOT) },
+            onEnemyKilledBy = {
+                controller.awardXp(it, PetProgression.XP_PER_ENEMY)
+                controller.awardGold(GameRules.GOLD_PER_ENEMY)
+            },
+            onPetFired = { controller.petFired(it) },
         )
     }
     LaunchedEffect(pets) { game.updatePets(pets) }
@@ -125,7 +131,7 @@ fun DefenseScreen(controller: PetController, onExit: () -> Unit, map: DefenseMap
             Modifier.fillMaxSize().pointerInput(game) {
                 detectTapGestures { pos ->
                     val t = fit(size.width.toFloat(), size.height.toFloat(), map)
-                    game.placePetAt((pos - t.second) / t.first)
+                    game.tapAt((pos - t.second) / t.first)
                 }
             },
         ) {
@@ -135,7 +141,7 @@ fun DefenseScreen(controller: PetController, onExit: () -> Unit, map: DefenseMap
                 scale(s, s, pivot = Offset.Zero) { drawDefense(game, sprites, text) }
             }
         }
-        Hud(hud, pets, onSelect = game::selectPet, onExit = onExit, onRestart = game::restart)
+        Hud(hud, pets, onSelect = game::selectPet, onStart = game::start, onExit = onExit, onRestart = game::restart)
     }
 }
 
@@ -166,6 +172,7 @@ private fun Hud(
     hud: DefenseHudState,
     pets: List<PetEntity>,
     onSelect: (String) -> Unit,
+    onStart: () -> Unit,
     onExit: () -> Unit,
     onRestart: () -> Unit,
 ) {
@@ -173,27 +180,51 @@ private fun Hud(
         FilledTonalIconButton(onClick = onExit, modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
             Icon(Icons.Filled.Close, contentDescription = "Salir")
         }
-        Row(
-            Modifier.align(Alignment.TopEnd).padding(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            HudChip(Icons.Filled.Favorite, "${hud.lives}")
-            HudChip(Icons.Filled.Bolt, "${hud.kills}")
-            HudChip(Icons.Filled.Timer, "${hud.seconds}s")
-            HudChip(Icons.Filled.Speed, "x${(hud.speedMultiplier * 10).roundToInt() / 10.0}")
+        // Los marcadores del combate solo cuando ya ha empezado: la preparación queda despejada.
+        if (hud.started) {
+            Row(
+                Modifier.align(Alignment.TopEnd).padding(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                HudChip(Icons.Filled.Favorite, "${hud.lives}")
+                HudChip(Icons.Filled.MonetizationOn, "+${hud.kills}") // 1 de oro por enemigo
+                HudChip(Icons.Filled.Timer, "${hud.seconds}s")
+                HudChip(Icons.Filled.Speed, "x${(hud.speedMultiplier * 10).roundToInt() / 10.0}")
+            }
         }
-        if (!hud.gameOver) {
-            PetBar(hud, pets, onSelect, Modifier.align(Alignment.BottomCenter))
-        } else {
+        if (!hud.started) {
+            // Preparación: colocar y mover pájaros, y "Empezar" cuando estés listo.
+            Row(
+                Modifier.align(Alignment.BottomCenter).padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PetBar(hud, pets, onSelect, Modifier.weight(1f, fill = false))
+                Button(
+                    onClick = onStart,
+                    enabled = hud.canStart,
+                    modifier = Modifier.padding(start = 8.dp).height(56.dp),
+                    // Desactivado (aún sin pájaros colocados) también debe verse sobre el mapa.
+                    colors = ButtonDefaults.buttonColors(
+                        disabledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                        disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                    ),
+                ) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Empezar", style = MaterialTheme.typography.titleMedium)
+                }
+            }
+        } else if (hud.gameOver) {
             Card(Modifier.align(Alignment.Center)) {
                 Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("¡Te han superado!", style = MaterialTheme.typography.headlineSmall)
                     Spacer(Modifier.height(8.dp))
-                    Text("Enemigos derrotados: ${hud.kills} · Tiempo: ${hud.seconds}s")
+                    Text("Enemigos derrotados: ${hud.kills} · Oro ganado: ${hud.kills * GameRules.GOLD_PER_ENEMY} · Tiempo: ${hud.seconds}s")
                     Spacer(Modifier.height(16.dp))
                     Row {
                         TextButton(onClick = onExit) { Text("Salir") }
                         Spacer(Modifier.width(8.dp))
+                        // Vuelve a la preparación con los pájaros donde estaban.
                         Button(onClick = onRestart) { Text("Reintentar") }
                     }
                 }
@@ -214,31 +245,36 @@ private fun HudChip(icon: ImageVector, text: String) {
 }
 
 /**
- * Mascotas criadas disponibles para la partida. La seleccionada se coloca con el próximo
- * toque en el mapa; las ya colocadas se marcan y no se pueden colocar de nuevo.
+ * Mascotas disponibles en la preparación. La seleccionada se coloca con el próximo toque en
+ * el mapa; elegir una ya colocada la recoge para recolocarla.
  */
 @Composable
 private fun PetBar(hud: DefenseHudState, pets: List<PetEntity>, onSelect: (String) -> Unit, modifier: Modifier) {
-    Card(modifier.padding(8.dp)) {
+    val editing = pets.firstOrNull { it.id == hud.editingId }
+    val selected = pets.firstOrNull { it.id == hud.selectedId }
+    Card(modifier) {
         Column(Modifier.padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                if (hud.selectedId != null) "Toca una zona verde para colocar a la mascota elegida"
-                else "Todas tus mascotas están en el mapa",
+                when {
+                    pets.isEmpty() -> "Los polluelos no combaten: aliméntalos para que crezcan"
+                    editing != null -> "Toca la hierba para mover a ${editing.name} (tócalo otra vez para dejarlo)"
+                    selected != null -> "Toca una zona verde para colocar a ${selected.name}"
+                    else -> "Toca un pájaro para moverlo, o pulsa Empezar"
+                },
                 style = MaterialTheme.typography.labelMedium,
             )
             Spacer(Modifier.height(6.dp))
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 pets.forEach { pet ->
                     val placed = pet.id in hud.placedIds
-                    val selected = hud.selectedId == pet.id
+                    val active = hud.selectedId == pet.id || hud.editingId == pet.id
                     val scheme = MaterialTheme.colorScheme
                     Surface(
                         onClick = { onSelect(pet.id) },
-                        enabled = !placed,
                         shape = RoundedCornerShape(12.dp),
-                        color = if (selected) scheme.primaryContainer else scheme.surfaceContainerHighest,
-                        border = if (selected) BorderStroke(2.dp, scheme.primary) else null,
-                        modifier = Modifier.alpha(if (placed) 0.45f else 1f),
+                        color = if (active) scheme.primaryContainer else scheme.surfaceContainerHighest,
+                        border = if (active) BorderStroke(2.dp, scheme.primary) else null,
+                        modifier = Modifier.alpha(if (placed && hud.editingId != pet.id) 0.6f else 1f),
                     ) {
                         Row(Modifier.padding(start = 4.dp, end = 10.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                             BirdFrame(pet.species, 40.dp)
