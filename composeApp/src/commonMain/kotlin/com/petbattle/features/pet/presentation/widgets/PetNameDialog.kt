@@ -34,9 +34,9 @@ import com.petbattle.shared_features.pet_status.domain.PetNameError
 import com.petbattle.shared_features.pet_status.domain.RosterRules
 
 /**
- * Asks for the name of a new pet. A pet can't be saved without one, so the
- * dialog only closes with a valid name (or when cancelled). [submit] tries to
- * adopt and returns why it failed, or `null` on success.
+ * Pide el nombre de una mascota nueva. Una mascota no se puede guardar sin él, así que el
+ * diálogo solo se cierra con un nombre válido (o al cancelar). [submit] intenta
+ * adoptar y devuelve el motivo del fallo, o `null` si tiene éxito.
  */
 @Composable
 fun PetNameDialog(species: PetSpecies, submit: (String) -> PetNameError?, onDismiss: () -> Unit) {

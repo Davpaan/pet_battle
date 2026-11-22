@@ -1,9 +1,9 @@
 package com.petbattle.shared_features.pet_species.domain
 
 /**
- * Which creature the player has chosen. Purely cosmetic for the status
- * rules; it decides the natural traits (element, type). Values are
- * persisted by name, so renaming one is a migration.
+ * Qué criatura ha elegido el jugador. Puramente cosmética para las reglas de estado; decide
+ * los rasgos naturales (elemento, tipo). Los valores se persisten por nombre, así que
+ * renombrar uno es una migración.
  */
 enum class PetSpecies {
     cardinal,

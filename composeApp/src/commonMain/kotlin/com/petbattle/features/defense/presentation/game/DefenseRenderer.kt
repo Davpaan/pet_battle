@@ -30,7 +30,7 @@ import com.petbattle.features.defense.domain.DefenseBalance
 import kotlin.math.floor
 import kotlin.math.sin
 
-/** Every image the defense scene needs, loaded once by the screen. */
+/** Todas las imágenes que necesita la escena de defensa, cargadas una vez por la pantalla. */
 class DefenseSprites(
     val map: ImageBitmap,
     val slime: ImageBitmap,
@@ -38,20 +38,20 @@ class DefenseSprites(
     val pets: Map<PetSpecies, ImageBitmap>,
 )
 
-/** Layout of `enemy_slime.png`: 32x32 frames, facing left. */
+/** Disposición de `enemy_slime.png`: frames de 32x32, mirando a la izquierda. */
 object SlimeSheet {
     const val FRAME = 32
     const val MOVE_ROW = 0
     const val MOVE_FRAMES = 8
     const val DEATH_ROW = 1
 
-    /** Ground line inside the frame (where the slime touches the floor). */
+    /** Línea del suelo dentro del frame (donde el slime toca el suelo). */
     const val GROUND_Y = 29f
     const val SCALE = 2f
     const val SIZE = FRAME * SCALE
 }
 
-/** Layout of `skill_<element>.png`: 4x3 frames of 32x32. */
+/** Disposición de `skill_<element>.png`: 4x3 frames de 32x32. */
 object SkillSheet {
     const val FRAME = 32
     const val PROJECTILE_ROW = 0
@@ -60,7 +60,7 @@ object SkillSheet {
     const val SIZE = FRAME * 2f
 }
 
-/** Draws text in map pixels, caching layouts (labels rarely change). */
+/** Dibuja texto en píxeles de mapa, cacheando los layouts (las etiquetas rara vez cambian). */
 class TextPainter(private val measurer: TextMeasurer) {
     private val cache = HashMap<Pair<String, Long>, TextLayoutResult>()
 
@@ -79,7 +79,7 @@ class TextPainter(private val measurer: TextMeasurer) {
         }
     }
 
-    /** [at] is the bottom-centre of the text. */
+    /** [at] es el centro inferior del texto. */
     fun draw(scope: DrawScope, text: String, at: Offset, color: Long = 0xFFFFFFFF, sizePx: Float = 18f, alpha: Float = 1f) {
         val l = layout(text, color, sizePx, scope.density)
         scope.drawText(l, topLeft = Offset(at.x - l.size.width / 2f, at.y - l.size.height), alpha = alpha)
@@ -88,7 +88,7 @@ class TextPainter(private val measurer: TextMeasurer) {
 
 private val whiteFlash = ColorFilter.tint(Color.White, BlendMode.SrcAtop)
 
-/** Draws the whole scene in map coordinates (the caller sets the transform). */
+/** Dibuja toda la escena en coordenadas de mapa (quien llama fija la transformación). */
 fun DrawScope.drawDefense(game: DefenseGame, sprites: DefenseSprites, text: TextPainter) {
     val map = game.map
     drawImage(
@@ -103,7 +103,7 @@ fun DrawScope.drawDefense(game: DefenseGame, sprites: DefenseSprites, text: Text
         for (cell in game.placeableCells) drawRect(tint, cell.topLeft, cell.size)
     }
 
-    // Depth sort: lower on the map = in front.
+    // Orden de profundidad: más abajo en el mapa = más al frente.
     val drawables = buildList<Pair<Float, () -> Unit>> {
         game.defenders.values.forEach { d -> add(d.position.y to { drawDefender(d, game, sprites, text) }) }
         game.enemies.forEach { e -> add(e.position.y to { drawEnemy(e, sprites, text) }) }
@@ -148,13 +148,13 @@ private fun DrawScope.drawDefender(d: Defender, game: DefenseGame, sprites: Defe
     val size = Defender.SIZE
     val feet = d.position
     val chest = d.muzzle
-    // Range.
+    // Alcance.
     drawCircle(Color(0x14FFFFFF), DefenseBalance.PET_RANGE.toFloat(), chest)
     drawCircle(Color(0x55FFFFFF), DefenseBalance.PET_RANGE.toFloat(), chest, style = Stroke(2f))
-    // Shadow.
+    // Sombra.
     drawOval(Color(0x40000000), Offset(feet.x - size * 0.25f, feet.y - 6f), Size(size * 0.5f, 12f))
 
-    // Spawn pop + shot squash.
+    // Efecto de aparición + aplastamiento al disparar.
     val pop = if (d.age < 0.3) 1 + 0.15f * sin(d.age / 0.3 * kotlin.math.PI).toFloat() else 1f
     val squash = if (d.shotAge < 0.16) sin(d.shotAge / 0.16 * kotlin.math.PI).toFloat() else 0f
     val col = floor(game.time / 0.45).toInt() % 4
@@ -164,7 +164,7 @@ private fun DrawScope.drawDefender(d: Defender, game: DefenseGame, sprites: Defe
             Offset(feet.x - size / 2, feet.y - size), size, flipX = d.facingRight,
         )
     }
-    // Name · level (or exhausted) and energy bar.
+    // Nombre · nivel (o agotada) y barra de energía.
     val top = feet.y - size
     val label = if (d.exhausted) "${d.pet.name} · ¡Agotado!" else "${d.pet.name} · Nv.${d.pet.skills.level}"
     text.draw(this, label, Offset(feet.x, top + size * 0.16f))
@@ -184,7 +184,7 @@ private fun DrawScope.drawEnemy(e: Enemy, sprites: DefenseSprites, text: TextPai
         sprites.slime, SlimeSheet.FRAME, col, SlimeSheet.MOVE_ROW, topLeft, size,
         flipX = e.facingRight, colorFilter = if (e.flash > 0) whiteFlash else null,
     )
-    // Effect overlays share the slime's 32px frame, so they line up.
+    // Las capas de efectos comparten el frame de 32px del slime, así que encajan.
     fun overlay(element: PetElement, step: Double) = drawSpriteFrame(
         sprites.skills.getValue(element), SkillSheet.FRAME, floor(e.effectT / step).toInt() % 4,
         SkillSheet.STATUS_ROW, topLeft, size, flipX = e.facingRight,
@@ -193,7 +193,7 @@ private fun DrawScope.drawEnemy(e: Enemy, sprites: DefenseSprites, text: TextPai
     if (e.entity.isBurning) overlay(PetElement.fire, 0.1)
     if (e.gust > 0) overlay(PetElement.air, 0.08)
 
-    // Level + health bar above the head.
+    // Nivel + barra de salud sobre la cabeza.
     val barW = 40f
     val bar = Offset(e.position.x - barW / 2, topLeft.y + 6)
     drawRect(Color(0xAA000000), bar, Size(barW, 6f))

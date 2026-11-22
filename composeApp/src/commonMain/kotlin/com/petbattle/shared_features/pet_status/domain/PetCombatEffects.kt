@@ -3,28 +3,28 @@ package com.petbattle.shared_features.pet_status.domain
 import com.petbattle.shared_features.pet_status.domain.entities.PetStatusEntity
 
 /**
- * How a pet's status affects its performance in combat. Every effect is
- * proportional to its bar: 100% bar = 100% effect, 50% bar = 50%...
+ * Cómo afecta el estado de una mascota a su rendimiento en combate. Cada efecto es
+ * proporcional a su barra: barra al 100% = efecto al 100%, barra al 50% = 50%...
  *
- * | status            | combat effect                     |
- * |-------------------|-----------------------------------|
- * | energy (tired)    | attack speed (shots per second)   |
- * | satiety (hunger)  | damage per hit                    |
- * | happiness (fun)   | chance of hitting the target      |
+ * | estado                  | efecto en combate                      |
+ * |-------------------------|----------------------------------------|
+ * | energy (cansancio)      | velocidad de ataque (disparos/segundo) |
+ * | satiety (hambre)        | daño por golpe                         |
+ * | happiness (diversión)   | probabilidad de acertar al objetivo    |
  */
 object PetCombatEffects {
     private fun fraction(stat: Double) = (stat / PetStatusBalance.MAX_STAT).coerceIn(0.0, 1.0)
 
-    /** Multiplier of the attack speed. 0 = too tired to attack at all. */
+    /** Multiplicador de la velocidad de ataque. 0 = demasiado cansada para atacar. */
     fun attackSpeed(status: PetStatusEntity) = fraction(status.energy)
 
-    /** Multiplier of the damage dealt by each hit. */
+    /** Multiplicador del daño infligido por cada golpe. */
     fun damage(status: PetStatusEntity) = fraction(status.satiety)
 
-    /** Probability (0..1) that a shot hits its target. */
+    /** Probabilidad (0..1) de que un disparo acierte al objetivo. */
     fun hitChance(status: PetStatusEntity) = fraction(status.happiness)
 
-    /** Seconds between shots for a base [baseInterval]; null when too tired. */
+    /** Segundos entre disparos para un [baseInterval] base; null si está demasiado cansada. */
     fun fireInterval(status: PetStatusEntity, baseInterval: Double): Double? {
         val speed = attackSpeed(status)
         return if (speed <= 0) null else baseInterval / speed

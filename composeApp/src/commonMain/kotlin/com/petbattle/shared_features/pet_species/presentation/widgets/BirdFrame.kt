@@ -12,7 +12,7 @@ import com.petbattle.shared_features.pet_species.presentation.BirdSheet
 import com.petbattle.shared_features.pet_species.presentation.sheet
 import org.jetbrains.compose.resources.imageResource
 
-/** One crisp, upscaled frame of a bird spritesheet (idle pose by default). */
+/** Un frame nítido y ampliado de un spritesheet de pájaro (pose de reposo por defecto). */
 @Composable
 fun BirdFrame(
     species: PetSpecies,

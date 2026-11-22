@@ -3,12 +3,12 @@ package com.petbattle.shared_features.pet_status.domain.entities
 import kotlinx.serialization.Serializable
 
 /**
- * Day-to-day needs of a pet. Every stat: 0 = critical, 100 = perfect.
- * - [satiety]   hunger bar (full = not hungry). In combat: damage.
- * - [energy]    tiredness bar (full = rested). In combat: attack speed.
- *               Only fighting drains it; sleeping refills it.
- * - [happiness] fun bar. In combat: hit chance.
- * - [hygiene]   cleanliness.
+ * Necesidades del día a día de una mascota. Cada estadística: 0 = crítico, 100 = perfecto.
+ * - [satiety]   barra de hambre (llena = sin hambre). En combate: daño.
+ * - [energy]    barra de cansancio (llena = descansada). En combate: velocidad de ataque.
+ *               Solo luchar la gasta; dormir la recupera.
+ * - [happiness] barra de diversión. En combate: probabilidad de acierto.
+ * - [hygiene]   limpieza.
  */
 @Serializable
 data class PetStatusEntity(
@@ -17,11 +17,11 @@ data class PetStatusEntity(
     val happiness: Double,
     val hygiene: Double,
     val isSleeping: Boolean = false,
-    /** UTC epoch milliseconds. */
+    /** Milisegundos epoch UTC. */
     val lastUpdatedAt: Long,
 ) {
     companion object {
-        /** A freshly adopted pet: fully rested, everything else at 80. */
+        /** Una mascota recién adoptada: totalmente descansada y el resto al 80. */
         fun initial(now: Long) = PetStatusEntity(
             satiety = 80.0, energy = 100.0, happiness = 80.0, hygiene = 80.0,
             lastUpdatedAt = now,

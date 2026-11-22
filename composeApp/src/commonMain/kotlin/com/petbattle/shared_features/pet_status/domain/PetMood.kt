@@ -3,12 +3,12 @@ package com.petbattle.shared_features.pet_status.domain
 import com.petbattle.shared_features.pet_status.domain.entities.PetStatusEntity
 
 /**
- * High-level emotional state, derived (never stored) from the status.
- * Ordered by priority: the first matching mood wins.
+ * Estado emocional de alto nivel, derivado (nunca almacenado) del estado.
+ * Ordenado por prioridad: gana el primer ánimo que coincida.
  */
 enum class PetMood { sleeping, hungry, tired, dirty, sad, content, happy }
 
-/** Average of all stats, 0..1. */
+/** Media de todas las estadísticas, 0..1. */
 val PetStatusEntity.wellbeing: Double
     get() = (satiety + energy + happiness + hygiene) / (4 * PetStatusBalance.MAX_STAT)
 

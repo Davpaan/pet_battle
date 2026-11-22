@@ -4,16 +4,16 @@ import com.petbattle.shared_features.pet_status.domain.entities.PetStatusEntity
 import kotlin.math.min
 
 /**
- * Pure status rules: `status in -> status out`. No UI, no I/O, no clock. The
- * same [advanceTo] powers both the live tick and the offline catch-up.
+ * Reglas puras de estado: `status in -> status out`. Sin UI, sin E/S, sin reloj. El
+ * mismo [advanceTo] sirve tanto para el tick en vivo como para la puesta al día offline.
  */
 object PetStatusRules {
     private const val MS_PER_HOUR = 3_600_000.0
 
-    /** Simulates everything that happened between `lastUpdatedAt` and [now]. */
+    /** Simula todo lo ocurrido entre `lastUpdatedAt` y [now]. */
     fun advanceTo(pet: PetStatusEntity, now: Long): PetStatusEntity {
         var elapsed = now - pet.lastUpdatedAt
-        // Clock moved backwards: don't "un-decay", just re-anchor.
+        // El reloj retrocedió: no se "des-decae", solo se reancla.
         if (elapsed <= 0) return pet.copy(lastUpdatedAt = now)
         if (elapsed > PetStatusBalance.MAX_OFFLINE_CATCH_UP_MS) {
             elapsed = PetStatusBalance.MAX_OFFLINE_CATCH_UP_MS
@@ -43,7 +43,7 @@ object PetStatusRules {
                 hygiene = clamp(pet.hygiene - PetStatusBalance.HYGIENE_DECAY_PER_HOUR * m * h),
                 happiness = clamp(pet.happiness - happinessRate * m * h),
             )
-            // Fully rested pets wake up on their own (also while offline).
+            // Las mascotas totalmente descansadas se despiertan solas (también sin conexión).
             return if (next.energy >= PetStatusBalance.MAX_STAT) next.copy(isSleeping = false) else next
         }
         return pet.copy(
@@ -53,8 +53,8 @@ object PetStatusRules {
         )
     }
 
-    // Player actions. `canX` lets the UI disable buttons; `x` is a no-op when
-    // the action is not allowed, so callers can't corrupt the state.
+    // Acciones del jugador. `canX` permite a la UI deshabilitar botones; `x` no hace nada
+    // si la acción no está permitida, así que quien llama no puede corromper el estado.
 
     fun canFeed(pet: PetStatusEntity) = !pet.isSleeping && pet.satiety < PetStatusBalance.MAX_STAT
 
@@ -70,11 +70,11 @@ object PetStatusRules {
     fun clean(pet: PetStatusEntity) =
         if (!canClean(pet)) pet else pet.copy(hygiene = clamp(pet.hygiene + PetStatusBalance.CLEAN_HYGIENE))
 
-    /** Tapping the pet: the way to make it happier. */
+    /** Tocar a la mascota: la forma de hacerla más feliz. */
     fun cuddle(pet: PetStatusEntity) =
         if (pet.isSleeping) pet else pet.copy(happiness = clamp(pet.happiness + PetStatusBalance.CUDDLE_HAPPINESS))
 
-    /** Tiredness from fighting: the only way energy goes down. */
+    /** Cansancio por luchar: la única forma de que baje la energía. */
     fun spendEnergy(pet: PetStatusEntity, amount: Double) =
         if (amount <= 0) pet else pet.copy(energy = clamp(pet.energy - amount))
 

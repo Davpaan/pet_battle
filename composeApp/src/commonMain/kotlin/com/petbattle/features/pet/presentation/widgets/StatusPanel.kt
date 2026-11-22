@@ -74,7 +74,7 @@ fun StatusPanel(pet: PetEntity, onChangeSpecies: (() -> Unit)?, modifier: Modifi
     }
 }
 
-/** "Nv. 3", XP progress towards the next level, element and type. */
+/** "Nv. 3", progreso de XP hacia el siguiente nivel, elemento y tipo. */
 @Composable
 private fun LevelRow(pet: PetEntity) {
     val skills = pet.skills

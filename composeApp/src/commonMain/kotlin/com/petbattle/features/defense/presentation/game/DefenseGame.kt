@@ -19,11 +19,11 @@ import kotlin.math.max
 
 import kotlin.random.Random
 
-/** Snapshot the HUD renders (frame-driven, never persisted). */
+/** Instantánea que dibuja el HUD (dirigida por frames, nunca se persiste). */
 data class DefenseHudState(
-    /** Pets already on the map (each raised pet can be placed once). */
+    /** Mascotas ya en el mapa (cada mascota criada se puede colocar una vez). */
     val placedIds: Set<String> = emptySet(),
-    /** Pet the next tap on the map places; null when all are placed. */
+    /** Mascota que colocará el próximo toque en el mapa; null si ya están todas colocadas. */
     val selectedId: String? = null,
     val seconds: Int = 0,
     val speedMultiplier: Double = 1.0,
@@ -33,15 +33,16 @@ data class DefenseHudState(
 )
 
 /**
- * Tower-defense simulation. World coordinates are map pixels.
+ * Simulación de tower defense. Las coordenadas del mundo son píxeles del mapa.
  *
- * Flow: the player picks one of their raised pets and taps a grass spot to
- * place it; every raised pet can be placed once. The run starts with the
- * first placement — enemies spawn and walk the routes, getting faster every
- * [DefenseBalance.SPEED_STEP_SECONDS], while each pet's attack speed, damage
- * and accuracy follow its status. Each defeated enemy reports the pet that
- * finished it ([onEnemyKilledBy]); every shot tires its pet ([onPetFired]).
- * Enemies reaching the exit cost a life; at 0 lives the run ends.
+ * Flujo: el jugador elige una de sus mascotas criadas y toca un punto de hierba
+ * para colocarla; cada mascota criada se puede colocar una vez. La partida empieza
+ * con la primera colocación: los enemigos aparecen y recorren las rutas, cada vez
+ * más rápido cada [DefenseBalance.SPEED_STEP_SECONDS], mientras que la velocidad
+ * de ataque, el daño y la precisión de cada mascota dependen de su estado. Cada
+ * enemigo derrotado informa de la mascota que lo remató ([onEnemyKilledBy]); cada
+ * disparo cansa a su mascota ([onPetFired]). Los enemigos que llegan a la salida
+ * cuestan una vida; con 0 vidas termina la partida.
  */
 class DefenseGame(
     val map: DefenseMapEntity,
@@ -51,15 +52,15 @@ class DefenseGame(
 ) {
     private val routes = map.routes.map(::RoutePath)
 
-    // --- Pets ----------------------------------------------------------------
+    // --- Mascotas ----------------------------------------------------------------
 
-    /** Raised pets available for this run, by id (latest snapshots). */
+    /** Mascotas criadas disponibles en esta partida, por id (últimas instantáneas). */
     private var pets: Map<String, PetEntity> = emptyMap()
     private var petOrder: List<String> = emptyList()
     var selectedId: String? = null
         private set
 
-    /** Latest snapshots from the controller (levels/energy change as they fight). */
+    /** Últimas instantáneas del controlador (nivel y energía cambian al combatir). */
     fun updatePets(value: List<PetEntity>) {
         pets = value.associateBy { it.id }
         petOrder = value.map { it.id }
@@ -67,14 +68,14 @@ class DefenseGame(
         if (selectedId == null || selectedId !in pets) selectedId = firstUnplaced()
     }
 
-    /** Chooses which pet the next tap on the map places. */
+    /** Elige qué mascota coloca el próximo toque en el mapa. */
     fun selectPet(petId: String) {
         if (petId in pets && petId !in defenders) selectedId = petId
     }
 
     private fun firstUnplaced() = petOrder.firstOrNull { it !in defenders }
 
-    // --- Run state -------------------------------------------------------------
+    // --- Estado de la partida -------------------------------------------------------------
 
     val defenders = LinkedHashMap<String, Defender>()
     val enemies = mutableListOf<Enemy>()
@@ -94,13 +95,13 @@ class DefenseGame(
 
     val running get() = defenders.isNotEmpty() && !gameOver
 
-    /** Current speed of every enemy on the map (map px/s). */
+    /** Velocidad actual de cada enemigo en el mapa (px de mapa/s). */
     val enemySpeed get() = DefenseRules.enemySpeed(elapsed)
 
-    /** The green "you can stand here" tint shows while a pet waits to be placed. */
+    /** El tinte verde de "aquí puedes colocarla" se muestra mientras una mascota espera ser colocada. */
     val showPlacement get() = !gameOver && selectedId in pets
 
-    /** Grass cells where a pet's footprint fits (for the placement tint). */
+    /** Celdas de hierba donde cabe la huella de una mascota (para el tinte de colocación). */
     val placeableCells: List<Rect> by lazy {
         val s = map.cellSize.toFloat()
         buildList {
@@ -124,7 +125,7 @@ class DefenseGame(
             gameOver = gameOver,
         )
 
-    /** Places the selected pet centred on [p] if that spot is free grass. */
+    /** Coloca la mascota seleccionada centrada en [p] si ese punto es hierba libre. */
     fun placePetAt(p: Offset) {
         val pet = pets[selectedId] ?: return
         if (gameOver) return
@@ -159,7 +160,7 @@ class DefenseGame(
         }
     }
 
-    // --- Events from entities -------------------------------------------------------
+    // --- Eventos de las entidades -------------------------------------------------------
 
     internal fun enemyKilled(enemy: Enemy) {
         enemies.remove(enemy)
@@ -183,7 +184,7 @@ class DefenseGame(
         onPetFired(defender.pet.id)
     }
 
-    /** Wipes the map and goes back to the placement step. */
+    /** Limpia el mapa y vuelve al paso de colocación. */
     fun restart() {
         defenders.clear()
         enemies.clear()
@@ -203,12 +204,12 @@ class DefenseGame(
     internal fun nextRandom() = random.nextDouble()
 }
 
-/** One of the player's pets standing on the map. */
+/** Una de las mascotas del jugador en el mapa. */
 class Defender(pet: PetEntity, val foot: Offset) {
     var pet: PetEntity = pet
         private set
 
-    /** Bottom-centre of the sprite (feet), slightly below the footprint centre. */
+    /** Centro inferior del sprite (los pies), algo por debajo del centro de la huella. */
     val position = foot + Offset(0f, (DefenseBalance.PET_FOOTPRINT_RADIUS * 0.6).toFloat())
     var facingRight = false
         private set
@@ -218,7 +219,7 @@ class Defender(pet: PetEntity, val foot: Offset) {
     var shotAge = 1.0
         private set
 
-    /** Where shots leave from (the bird's chest). */
+    /** De dónde salen los disparos (el pecho del pájaro). */
     val muzzle get() = position - Offset(0f, SIZE * 0.45f)
 
     val exhausted get() = DefenseRules.fireInterval(pet) == null
@@ -239,7 +240,7 @@ class Defender(pet: PetEntity, val foot: Offset) {
         if (!game.running) return
         cooldown -= dt
         if (cooldown > 0) return
-        val interval = DefenseRules.fireInterval(pet) ?: return // exhausted: needs to sleep
+        val interval = DefenseRules.fireInterval(pet) ?: return // agotada: necesita dormir
         val target = pickTarget(game) ?: return
         cooldown = interval
         facingRight = target.position.x > position.x
@@ -259,7 +260,7 @@ class Defender(pet: PetEntity, val foot: Offset) {
         )
     }
 
-    /** The enemy closest to the exit, within range. */
+    /** El enemigo más cercano a la salida, dentro del alcance. */
     private fun pickTarget(game: DefenseGame): Enemy? {
         val range2 = DefenseBalance.PET_RANGE * DefenseBalance.PET_RANGE
         val from = muzzle
@@ -269,12 +270,12 @@ class Defender(pet: PetEntity, val foot: Offset) {
     }
 
     companion object {
-        /** On-map size: 2x the 64px frame keeps the pixel art crisp. */
+        /** Tamaño en el mapa: 2x el frame de 64px mantiene nítido el pixel art. */
         const val SIZE = 128f
     }
 }
 
-/** A slime crawling along a route; game state lives in its [entity]. */
+/** Un slime arrastrándose por una ruta; su estado de juego vive en su [entity]. */
 class Enemy(val route: RoutePath, entity: EnemyEntity, spawnIndex: Int) {
     var entity: EnemyEntity = entity
         private set
@@ -288,7 +289,7 @@ class Enemy(val route: RoutePath, entity: EnemyEntity, spawnIndex: Int) {
     var gust = 0.0
         private set
 
-    /** Animation clock: runs faster the faster it walks. */
+    /** Reloj de animación: corre más rápido cuanto más rápido camina. */
     var animT = (spawnIndex * 3 % 8) * 0.1
         private set
     var effectT = 0.0
@@ -297,10 +298,10 @@ class Enemy(val route: RoutePath, entity: EnemyEntity, spawnIndex: Int) {
     val alive get() = !entity.isDefeated && !removed
     private var removed = false
 
-    /** How far along its route it is; pets target the most advanced one. */
+    /** Cuánto ha avanzado por su ruta; las mascotas apuntan al más avanzado. */
     val progress get() = travelled / route.length
 
-    /** Middle of the body (what projectiles aim at). */
+    /** Centro del cuerpo (a lo que apuntan los proyectiles). */
     val bodyCenter get() = position - Offset(0f, (RADIUS * 0.75).toFloat())
 
     fun update(dt: Double, game: DefenseGame) {
@@ -308,7 +309,7 @@ class Enemy(val route: RoutePath, entity: EnemyEntity, spawnIndex: Int) {
         if (gust > 0) gust -= dt
         effectT += dt
         if (!game.running || removed) return
-        // Burns tick and slows wear off; a burn can finish it.
+        // Las quemaduras hacen tick y las ralentizaciones se disipan; una quemadura puede rematarlo.
         entity = entity.tick(dt)
         if (entity.isDefeated) {
             die(game)
@@ -330,7 +331,7 @@ class Enemy(val route: RoutePath, entity: EnemyEntity, spawnIndex: Int) {
         position = p.toOffset()
     }
 
-    /** A pet's shot landed: its skill decides what happens. */
+    /** El disparo de una mascota ha acertado: su habilidad decide qué ocurre. */
     fun takeHit(damage: Double, skill: PetSkillEntity, byPetId: String, game: DefenseGame) {
         if (!alive) return
         val outcome = CombatRules.applyHit(entity, damage, skill.effect, byPetId)
@@ -351,14 +352,15 @@ class Enemy(val route: RoutePath, entity: EnemyEntity, spawnIndex: Int) {
     }
 
     companion object {
-        /** Rough body radius in map px (hit tests, projectile impact). */
+        /** Radio aproximado del cuerpo en px de mapa (pruebas de impacto, choque de proyectiles). */
         const val RADIUS = 22.0
     }
 }
 
 /**
- * A pet's attack: the skill of its element flying at an enemy. A hit homes
- * in and lets the skill's effect act; a miss flies past and shows "¡Fallo!".
+ * Ataque de una mascota: la habilidad de su elemento volando hacia un enemigo. Un
+ * acierto se dirige al blanco y deja actuar el efecto de la habilidad; un fallo pasa
+ * de largo y muestra "¡Fallo!".
  */
 class Projectile(
     position: Offset,
@@ -402,13 +404,13 @@ class Projectile(
             game.projectiles.remove(this)
             return
         }
-        // The sprite is drawn travelling right: turn it to its heading.
+        // El sprite se dibuja viajando hacia la derecha: se gira hacia su rumbo.
         angle = atan2(delta.y, delta.x)
         position += delta / dist * step
     }
 }
 
-/** One-shot sprite animation (impacts, slime deaths). */
+/** Animación de sprite de una sola vez (impactos, muertes de slime). */
 class AnimEffect(
     val kind: Kind,
     val element: PetElement?,
@@ -432,7 +434,7 @@ class AnimEffect(
     }
 }
 
-/** Text floating up and fading ("¡Fallo!", "¡Nivel 3!"). */
+/** Texto que flota hacia arriba y se desvanece ("¡Fallo!", "¡Nivel 3!"). */
 class FloatingText(
     val text: String,
     val origin: Offset,
@@ -445,7 +447,7 @@ class FloatingText(
     val position get() = origin - Offset(0f, (rise * age).toFloat())
 }
 
-/** Short-lived red cross where the player tapped a forbidden spot. */
+/** Cruz roja efímera donde el jugador tocó un punto prohibido. */
 class InvalidMarker(val position: Offset) {
     var age = 0.0
 

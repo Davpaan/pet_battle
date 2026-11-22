@@ -4,13 +4,13 @@ import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import kotlinx.serialization.Serializable
 
 /**
- * Every pet the player has raised (one per species) plus the one currently
- * being looked after on the main screen.
+ * Todas las mascotas que ha criado el jugador (una por especie) más la que se está
+ * cuidando actualmente en la pantalla principal.
  */
 @Serializable
 data class PetRosterEntity(
     val pets: List<PetEntity> = emptyList(),
-    /** `null` only before the first adoption. */
+    /** `null` solo antes de la primera adopción. */
     val activeId: String? = null,
 ) {
     val active: PetEntity? get() = pets.firstOrNull { it.id == activeId }
@@ -21,7 +21,7 @@ data class PetRosterEntity(
 
     fun hasRaised(species: PetSpecies) = bySpecies(species) != null
 
-    /** Same roster with the pet that has [pet]'s id replaced by [pet]. */
+    /** Mismo plantel con la mascota que tiene el id de [pet] sustituida por [pet]. */
     fun replace(pet: PetEntity) = copy(pets = pets.map { if (it.id == pet.id) pet else it })
 
     companion object {

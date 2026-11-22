@@ -1,19 +1,19 @@
 package com.petbattle.shared_features.pet_skills.domain.entities
 
 /**
- * What a skill does to the enemy it hits, on top of (or instead of) the plain
- * damage. Pure data: combat rules (defense feature) interpret it.
+ * Lo que hace una habilidad al enemigo al que golpea, además de (o en lugar de) el daño
+ * normal. Solo datos: las reglas de combate (feature defense) lo interpretan.
  */
 sealed interface SkillEffectEntity
 
-/** Plain hit: all the damage lands at once (earth). */
+/** Golpe normal: todo el daño se aplica de una vez (tierra). */
 data object DirectDamageEffect : SkillEffectEntity
 
-/** Burn (fire): no instant damage; damage × [damageMultiplier] over [seconds]. */
+/** Quemadura (fuego): sin daño instantáneo; daño × [damageMultiplier] durante [seconds]. */
 data class BurnEffect(val damageMultiplier: Double, val seconds: Double) : SkillEffectEntity
 
-/** Slow (water): moves at [speedFactor] of its speed for [seconds]. */
+/** Ralentización (agua): se mueve a [speedFactor] de su velocidad durante [seconds]. */
 data class SlowEffect(val speedFactor: Double, val seconds: Double) : SkillEffectEntity
 
-/** Knockback (air): pushed [distance] map px back along its path. */
+/** Empujón (aire): lo empuja [distance] px de mapa hacia atrás por su camino. */
 data class KnockbackEffect(val distance: Double) : SkillEffectEntity

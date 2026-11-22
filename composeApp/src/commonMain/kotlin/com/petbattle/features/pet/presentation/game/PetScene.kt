@@ -48,10 +48,10 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * The pet's little world: sky + floor (night while it sleeps) and the bird,
- * drawn from its spritesheet. Expressiveness comes from the idle/react
- * animations, facing direction, desaturation when unwell, pixel-art dirt and
- * a squash & stretch bounce plus hearts when tapped ([onPetTapped]).
+ * El pequeño mundo de la mascota: cielo + suelo (de noche mientras duerme) y el pájaro,
+ * dibujado desde su spritesheet. La expresividad viene de las animaciones idle/react,
+ * la dirección en que mira, la desaturación cuando está mal, la suciedad pixel-art y
+ * un rebote de squash & stretch más corazones al tocarla ([onPetTapped]).
  */
 @Composable
 fun PetScene(pet: PetEntity, onPetTapped: () -> Unit, modifier: Modifier = Modifier) {
@@ -84,7 +84,7 @@ fun PetScene(pet: PetEntity, onPetTapped: () -> Unit, modifier: Modifier = Modif
             }
         },
     ) {
-        frame // read so every frame redraws
+        frame // se lee para que cada frame se redibuje
         drawBackground(state.nightT)
         drawPet(state, currentPet, sheet)
         drawHearts(state)
@@ -105,7 +105,7 @@ fun PetScene(pet: PetEntity, onPetTapped: () -> Unit, modifier: Modifier = Modif
     }
 }
 
-/** Frame-driven state of the scene (never persisted). */
+/** Estado de la escena guiado por frames (nunca se persiste). */
 private class PetSceneState {
     var time = 0.0
     var nightT = 0.0
@@ -113,7 +113,7 @@ private class PetSceneState {
     var saturation = 1.0
     var facingRight = false
     var nextTurnIn = 3.0
-    var reactT = -1.0 // seconds into the tap reaction, <0 = not reacting
+    var reactT = -1.0 // segundos de reacción al toque, <0 = sin reaccionar
     var bounceT = -1.0
     val hearts = mutableListOf<Heart>()
     var petRect = Rect.Zero
@@ -151,7 +151,7 @@ private class PetSceneState {
         }
     }
 
-    /** Squash & stretch: (1.18, .82) -> (.9, 1.12) -> (1, 1) with overshoot. */
+    /** Squash & stretch: (1.18, .82) -> (.9, 1.12) -> (1, 1) con overshoot. */
     fun bounceScale(): Pair<Float, Float> {
         val t = bounceT
         if (t < 0) return 1f to 1f
@@ -164,7 +164,7 @@ private class PetSceneState {
             t < 0.17 -> lerpPair(squash, stretch, (t - 0.07) / 0.1)
             else -> {
                 val k = ((t - 0.17) / 0.18).coerceIn(0.0, 1.0)
-                // Elastic settle.
+                // Asentamiento elástico.
                 val e = 1 - kotlin.math.cos(k * kotlin.math.PI * 2.5) * (1 - k)
                 lerpPair(stretch, 1f to 1f, e)
             }
@@ -183,7 +183,7 @@ private val NightSky = listOf(Color(0xFF1B2147), Color(0xFF3B3F78))
 private val DayFloor = Color(0xFFF2C894)
 private val NightFloor = Color(0xFF6B5A7A)
 
-/** Sky + floor drawn procedurally; cross-fades to night while sleeping. */
+/** Cielo + suelo dibujados proceduralmente; funde a noche mientras duerme. */
 private fun DrawScope.drawBackground(nightT: Double) {
     val t = nightT.toFloat()
     val w = size.width
@@ -192,7 +192,7 @@ private fun DrawScope.drawBackground(nightT: Double) {
     val top = lerp(DaySky[0], NightSky[0], t)
     val bottom = lerp(DaySky[1], NightSky[1], t)
     drawRect(Brush.verticalGradient(listOf(top, bottom), 0f, groundY), size = Size(w, groundY))
-    // Sun fades into a moon.
+    // El sol se transforma en luna.
     val c = Offset(w * 0.8f, h * 0.14f)
     drawCircle(lerp(Color(0xFFFFE066), Color(0xFFF4F1DE), t), w * 0.07f, c)
     if (t > 0.01f) drawCircle(top.copy(alpha = t), w * 0.065f, c + Offset(w * 0.03f, -w * 0.015f))
@@ -201,7 +201,7 @@ private fun DrawScope.drawBackground(nightT: Double) {
     drawRect(floor.copy(alpha = 0.5f), Offset(0f, groundY), Size(w, 6f))
 }
 
-// Mud splats in texel coordinates of the 64px frame (standing pose).
+// Salpicaduras de barro en coordenadas de texel del frame de 64px (pose de pie).
 private val DirtSplats = listOf(28 to 40, 36 to 37, 22 to 31, 32 to 45, 41 to 47, 24 to 44, 17 to 27, 45 to 53)
 private val SplatShape = listOf(1 to 0, 2 to 0, 0 to 1, 1 to 1, 2 to 1, 3 to 1, 1 to 2, 2 to 2, 3 to 2)
 private val SplatCore = listOf(1 to 1, 2 to 1, 2 to 2)
@@ -209,7 +209,7 @@ private val SplatCore = listOf(1 to 1, 2 to 1, 2 to 2)
 private fun DrawScope.drawPet(state: PetSceneState, pet: PetEntity, sheet: ImageBitmap) {
     val w = size.width
     val h = size.height
-    // Integer multiple of the frame keeps pixel art crisp (no uneven texels).
+    // Un múltiplo entero del frame mantiene nítido el pixel art (sin texels desiguales).
     val raw = min(w * 0.45f, h * 0.32f)
     val scale = max(2, (raw / BirdSheet.FRAME_SIZE).roundToInt())
     val side = (scale * BirdSheet.FRAME_SIZE).toFloat()
@@ -218,17 +218,17 @@ private fun DrawScope.drawPet(state: PetSceneState, pet: PetEntity, sheet: Image
     val topY = groundY - side
     state.petRect = Rect(left, topY, left + side, groundY)
 
-    // Ground shadow.
+    // Sombra en el suelo.
     drawOval(Color(0x26000000), Offset(w / 2 - side * 0.3f, groundY - side * 0.04f), Size(side * 0.6f, side * 0.08f))
 
     val asleep = pet.status.isSleeping
     val (col, row) = when {
         state.reactT >= 0 -> min(3, floor(state.reactT / 0.1).toInt()) to BirdSheet.REACT_ROW
-        asleep -> 0 to BirdSheet.IDLE_ROW // sleeping freezes the idle pose
+        asleep -> 0 to BirdSheet.IDLE_ROW // dormir congela la pose idle
         else -> (floor(state.time / 0.45).toInt() % 4) to BirdSheet.IDLE_ROW
     }
 
-    // Idle breathing: slower and deeper while sleeping.
+    // Respiración idle: más lenta y profunda mientras duerme.
     val speed = 2.2 - state.sleepT * 1.2
     val amount = 0.02 + state.sleepT * 0.02
     val b = (sin(state.time * speed) * amount).toFloat()
@@ -242,7 +242,7 @@ private fun DrawScope.drawPet(state: PetSceneState, pet: PetEntity, sheet: Image
         drawIntoCanvas { it.saveLayer(bounds, Paint()) }
         drawSpriteFrame(sheet, BirdSheet.FRAME_SIZE, col, row, Offset(left, topY), side, flipX = state.facingRight, colorFilter = filter)
         if (dirtiness > 0) {
-            // SrcAtop: dirt only lands on the bird's own pixels.
+            // SrcAtop: la suciedad solo cae sobre los píxeles del propio pájaro.
             val texel = side / BirdSheet.FRAME_SIZE
             val alpha = (0.55 + dirtiness * 0.4).toFloat()
             val count = ceil(dirtiness * DirtSplats.size).toInt()

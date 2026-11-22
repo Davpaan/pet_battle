@@ -1,6 +1,6 @@
 package com.petbattle.core.time
 
-/** Source of "now" as UTC epoch milliseconds. Overridable in tests. */
+/** Fuente de "ahora" como milisegundos de epoch UTC. Sustituible en tests. */
 fun interface Clock {
     fun nowMillis(): Long
 }

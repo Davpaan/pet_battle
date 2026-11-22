@@ -26,9 +26,9 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * Smoke test of the defense scene: plays a few seconds with one pet of each
- * element and renders the frame off-screen to build/visual/defense-*.png,
- * so the whole renderer runs (sprites, overlays, projectiles, text).
+ * Test de humo de la escena de defensa: juega unos segundos con una mascota de cada
+ * elemento y renderiza el frame fuera de pantalla en build/visual/defense-*.png,
+ * de modo que se ejecute todo el renderer (sprites, overlays, proyectiles, texto).
  */
 class DefenseVisualTest {
     private val res = File("src/commonMain/composeResources/drawable")

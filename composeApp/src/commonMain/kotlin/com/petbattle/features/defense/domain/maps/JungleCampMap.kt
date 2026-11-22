@@ -1,12 +1,12 @@
-// GENERATED from the Flutter project's map data (tool/defense_map.py) — do not edit by hand.
+// GENERADO a partir de los datos de mapa del proyecto Flutter (tool/defense_map.py): no editar a mano.
 package com.petbattle.features.defense.domain.maps
 
 import com.petbattle.features.defense.domain.entities.DefenseMapEntity
 import com.petbattle.features.defense.domain.entities.MapPoint
 import com.petbattle.features.defense.domain.entities.MapRoute
 
-/** Jungle camp: two entrances (east, south) merging into one exit at the
- * bottom-left. '#' cells are grass where pets may be placed. */
+/** Campamento de la jungla: dos entradas (este, sur) que confluyen en una salida en la
+ * esquina inferior izquierda. Las celdas '#' son hierba donde se pueden colocar mascotas. */
 val jungleCampMap = DefenseMapEntity(
     width = 1528,
     height = 814,

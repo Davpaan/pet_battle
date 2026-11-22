@@ -2,51 +2,51 @@ package com.petbattle.shared_features.pet_skills.domain
 
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
 
-/** Classical element of a pet. Drives element-specific skills. */
+/** Elemento clásico de una mascota. Determina las habilidades propias del elemento. */
 enum class PetElement { fire, air, water, earth }
 
-/** Alignment of a pet. Drives type-specific skills. */
+/** Tipo (alineamiento) de una mascota. Determina las habilidades propias del tipo. */
 enum class PetType { light, darkness, elemental }
 
 /**
- * Where a species usually lives. Only used to derive [PetElement], so the
- * classification reads as natural history instead of an arbitrary table.
+ * Dónde suele vivir una especie. Solo se usa para derivar [PetElement], de modo que la
+ * clasificación se lea como historia natural y no como una tabla arbitraria.
  */
 enum class Habitat(val element: PetElement) {
-    /** Hot, dry scrub and desert edges. */
+    /** Matorral cálido y seco y bordes del desierto. */
     aridScrub(PetElement.fire),
 
-    /** Tree canopy, open sky: lives mostly in the air. */
+    /** Copas de árboles y cielo abierto: vive sobre todo en el aire. */
     canopy(PetElement.air),
 
-    /** Damp forest floor, streams, wetlands. */
+    /** Suelo húmedo del bosque, arroyos, humedales. */
     wetland(PetElement.water),
 
-    /** Forages on the ground: fields, lawns, open country. */
+    /** Busca comida en el suelo: campos, céspedes, campo abierto. */
     ground(PetElement.earth),
 }
 
-/** Natural traits of each species (see PetSkillsEntity.forSpecies). */
+/** Rasgos naturales de cada especie (ver PetSkillsEntity.forSpecies). */
 val PetSpecies.habitat: Habitat
     get() = when (this) {
-        // Thickets and Sonoran desert scrub.
+        // Matorrales y maleza del desierto de Sonora.
         PetSpecies.cardinal -> Habitat.aridScrub
-        // Originally a bird of the western deserts.
+        // Originalmente un ave de los desiertos del oeste.
         PetSpecies.houseFinch -> Habitat.aridScrub
-        // Damp deciduous forest floor near streams.
+        // Suelo húmedo de bosque caducifolio cerca de arroyos.
         PetSpecies.woodThrush -> Habitat.wetland
-        // Ground foragers of fields, lawns and open country.
+        // Buscan comida en el suelo de campos, céspedes y campo abierto.
         PetSpecies.crow, PetSpecies.magpie, PetSpecies.redRobin -> Habitat.ground
-        // Canopy dwellers and aerial specialists.
+        // Habitantes de las copas y especialistas del aire.
         PetSpecies.blueJay, PetSpecies.cedarWaxwing, PetSpecies.chickadee,
         PetSpecies.hummingbird, PetSpecies.stellersJay, PetSpecies.whiteDove,
         -> Habitat.canopy
     }
 
-/** Element derived from the habitat. */
+/** Elemento derivado del hábitat. */
 val PetSpecies.element: PetElement get() = habitat.element
 
-/** Everyone is elemental except the crow (darkness) and the white dove (light). */
+/** Todos son elementales salvo el cuervo (oscuridad) y la paloma blanca (luz). */
 val PetSpecies.type: PetType
     get() = when (this) {
         PetSpecies.crow -> PetType.darkness

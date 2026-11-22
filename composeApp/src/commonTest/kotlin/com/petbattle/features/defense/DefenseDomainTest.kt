@@ -41,8 +41,8 @@ class DefenseDomainTest {
     @Test fun mapPlacementRules() {
         val r = DefenseBalance.PET_FOOTPRINT_RADIUS
         assertTrue(jungleCampMap.canPlace(MapPoint(1000.0, 540.0), r))
-        assertFalse(jungleCampMap.canPlace(MapPoint(700.0, 430.0), r)) // path
-        assertFalse(jungleCampMap.canPlace(MapPoint(1040.0, 260.0), r)) // hut
+        assertFalse(jungleCampMap.canPlace(MapPoint(700.0, 430.0), r)) // camino
+        assertFalse(jungleCampMap.canPlace(MapPoint(1040.0, 260.0), r)) // cabaña
         for (route in jungleCampMap.routes) {
             val path = RoutePath(route)
             var d = 0.0
@@ -82,10 +82,10 @@ class DefenseDomainTest {
     }
 
     @Test fun elementalEffects() {
-        // Earth: plain hit.
+        // Tierra: golpe simple.
         val earth = CombatRules.applyHit(EnemyEntity.spawn(3), 1.2, PetSkillsCatalog.earthRock.effect, "p")
         close(2.4, earth.enemy.hp)
-        // Fire: nothing instant, 1.2x over 3 s, credited to the burner.
+        // Fuego: nada instantáneo, 1.2x durante 3 s, acreditado a quien quema.
         var fire = CombatRules.applyHit(EnemyEntity.spawn(10), 2.0, PetSkillsCatalog.fireBurn.effect, "kai").enemy
         close(12.0, fire.hp)
         fire = fire.tick(1.5)
@@ -97,14 +97,14 @@ class DefenseDomainTest {
             .enemy.tick(3.0)
         assertTrue(burnt.isDefeated)
         assertEquals("kai", burnt.lastHitBy)
-        // Water: damage + slow that wears off.
+        // Agua: daño + ralentización que se disipa.
         val slow = PetSkillsCatalog.waterSlow.effect as SlowEffect
         var wet = CombatRules.applyHit(EnemyEntity.spawn(3), 1.2, slow, "p").enemy
         close(2.4, wet.hp)
         assertEquals(slow.speedFactor, wet.speedFactor)
         wet = wet.tick(slow.seconds + 0.1)
         assertEquals(1.0, wet.speedFactor)
-        // Air: damage + knockback.
+        // Aire: daño + retroceso.
         val air = CombatRules.applyHit(EnemyEntity.spawn(3), 1.2, PetSkillsCatalog.airGust.effect, "p")
         close(2.4, air.enemy.hp)
         assertEquals((PetSkillsCatalog.airGust.effect as KnockbackEffect).distance, air.knockback)

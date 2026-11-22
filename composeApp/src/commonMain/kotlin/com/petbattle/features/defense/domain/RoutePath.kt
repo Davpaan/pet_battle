@@ -3,7 +3,7 @@ package com.petbattle.features.defense.domain
 import com.petbattle.features.defense.domain.entities.MapPoint
 import com.petbattle.features.defense.domain.entities.MapRoute
 
-/** A [MapRoute] measured for constant-speed travel: distance -> position. */
+/** A [MapRoute] medida para recorrerla a velocidad constante: distancia -> posición. */
 class RoutePath(route: MapRoute) {
     val points: List<MapPoint> = route.points
     private val cumulative: DoubleArray
@@ -18,7 +18,7 @@ class RoutePath(route: MapRoute) {
 
     val length: Double get() = cumulative.last()
 
-    /** Position after travelling [distance] from the start (clamped to ends). */
+    /** Posición tras recorrer [distance] desde el inicio (limitada a los extremos). */
     fun positionAt(distance: Double): MapPoint {
         if (distance <= 0) return points.first()
         if (distance >= length) return points.last()

@@ -6,22 +6,22 @@ import com.petbattle.shared_features.pet_status.domain.entities.PetEntity
 import com.petbattle.shared_features.pet_status.domain.entities.PetRosterEntity
 import com.petbattle.shared_features.pet_status.domain.entities.PetStatusEntity
 
-/** Why a name can't be used. The UI maps each case to a message. */
+/** Motivo por el que no se puede usar un nombre. La UI asigna un mensaje a cada caso. */
 enum class PetNameError { empty, tooLong, taken }
 
 /**
- * Pure rules over the whole collection of raised pets.
- * - One pet per species. Picking a species you've never raised adopts a new
- *   pet at level 0 and it must be given a name.
- * - Only the active pet lives in real time. The others rest: their stats are
- *   frozen while inactive and resume when they're picked again.
+ * Reglas puras sobre toda la colección de mascotas criadas.
+ * - Una mascota por especie. Elegir una especie que nunca has criado adopta una
+ *   mascota nueva de nivel 0 y hay que ponerle nombre.
+ * - Solo la mascota activa vive en tiempo real. Las demás descansan: sus estadísticas
+ *   se congelan mientras están inactivas y se reanudan al volver a elegirlas.
  */
 object RosterRules {
     const val MAX_NAME_LENGTH = 16
 
     fun normalizeName(raw: String) = raw.trim().replace(Regex("\\s+"), " ")
 
-    /** `null` when [raw] is a valid name for a new pet in [roster]. */
+    /** `null` si [raw] es un nombre válido para una mascota nueva en [roster]. */
     fun validateName(roster: PetRosterEntity, raw: String): PetNameError? {
         val name = normalizeName(raw)
         if (name.isEmpty()) return PetNameError.empty
@@ -32,7 +32,7 @@ object RosterRules {
 
     fun canAdopt(roster: PetRosterEntity, species: PetSpecies) = !roster.hasRaised(species)
 
-    /** Adds a new level-0 pet and makes it active. Callers validate first. */
+    /** Añade una mascota nueva de nivel 0 y la activa. Quien llama debe validar antes. */
     fun adopt(roster: PetRosterEntity, species: PetSpecies, name: String, now: Long): PetRosterEntity {
         require(canAdopt(roster, species)) { "$species already raised" }
         val error = validateName(roster, name)
@@ -41,7 +41,7 @@ object RosterRules {
         return roster.copy(pets = roster.pets + pet, activeId = pet.id)
     }
 
-    /** Makes [petId] active; its clock is re-anchored so resting didn't decay it. */
+    /** Activa [petId]; su reloj se reancla para que el descanso no la haga decaer. */
     fun switchTo(roster: PetRosterEntity, petId: String, now: Long): PetRosterEntity {
         val pet = roster.byId(petId) ?: return roster
         if (petId == roster.activeId) return roster
@@ -49,25 +49,25 @@ object RosterRules {
             .copy(activeId = petId)
     }
 
-    /** Applies [change] to the active pet (no-op without one). */
+    /** Aplica [change] a la mascota activa (no hace nada si no hay). */
     fun updateActive(roster: PetRosterEntity, change: (PetEntity) -> PetEntity): PetRosterEntity {
         val active = roster.active ?: return roster
         return roster.replace(change(active))
     }
 
-    /** Applies [change] to the status of the active pet. */
+    /** Aplica [change] al estado de la mascota activa. */
     fun updateActiveStatus(
         roster: PetRosterEntity,
         change: (PetStatusEntity) -> PetStatusEntity,
     ) = updateActive(roster) { it.copy(status = change(it.status)) }
 
-    /** Gives [amount] XP to pet [petId] (any pet, active or resting). */
+    /** Da [amount] XP a la mascota [petId] (cualquiera, activa o en reposo). */
     fun awardXp(roster: PetRosterEntity, petId: String, amount: Int): PetRosterEntity {
         val pet = roster.byId(petId) ?: return roster
         return roster.replace(pet.copy(skills = PetProgression.gainXp(pet.skills, amount)))
     }
 
-    /** Pet [petId] gets tired by fighting (any pet, active or resting). */
+    /** La mascota [petId] se cansa por luchar (cualquiera, activa o en reposo). */
     fun spendEnergy(roster: PetRosterEntity, petId: String, amount: Double): PetRosterEntity {
         val pet = roster.byId(petId) ?: return roster
         return roster.replace(pet.copy(status = PetStatusRules.spendEnergy(pet.status, amount)))

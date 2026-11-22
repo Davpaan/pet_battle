@@ -10,8 +10,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 
 /**
- * Desktop store: one JSON object in ~/.local/share/pet_battle/store.json
- * (XDG data dir on Linux). Writes go to a temp file first, then replace.
+ * Almacén de escritorio: un objeto JSON en ~/.local/share/pet_battle/store.json
+ * (directorio de datos XDG en Linux). Se escribe primero en un archivo temporal y luego se reemplaza.
  */
 class FileKeyValueStore(private val file: File = defaultFile()) : KeyValueStore {
     private fun read(): Map<String, String> = try {

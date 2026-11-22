@@ -29,7 +29,7 @@ import androidx.compose.ui.unit.dp
 import com.petbattle.shared_features.pet_skills.domain.PetElement
 import com.petbattle.shared_features.pet_skills.domain.PetType
 
-/** Display data for traits. Kept out of the domain like the species catalog. */
+/** Datos de presentación de los rasgos. Fuera del dominio, como el catálogo de especies. */
 val PetElement.label get() = when (this) {
     PetElement.fire -> "Fuego"
     PetElement.air -> "Aire"
@@ -69,7 +69,7 @@ val PetType.color get() = when (this) {
     PetType.elemental -> Color(0xFF00897B)
 }
 
-/** Small rounded label with an icon, e.g. [fire icon] "Fuego". */
+/** Pequeña etiqueta redondeada con un icono, p. ej. [fire icon] "Fuego". */
 @Composable
 fun TraitChip(icon: ImageVector, label: String, color: Color, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(12.dp)

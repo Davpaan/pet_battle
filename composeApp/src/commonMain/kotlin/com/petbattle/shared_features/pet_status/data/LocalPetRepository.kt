@@ -7,9 +7,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * Stores every raised pet as one versioned JSON document in the app's
- * key/value store. The roster is a small aggregate always read/written as a
- * unit, so no database is needed.
+ * Guarda todas las mascotas criadas como un único documento JSON versionado en el
+ * almacén clave/valor de la app. El plantel es un agregado pequeño que siempre se
+ * lee/escribe como una unidad, así que no hace falta una base de datos.
  */
 class LocalPetRepository(private val store: KeyValueStore) : PetRepository {
 
@@ -33,12 +33,12 @@ class LocalPetRepository(private val store: KeyValueStore) : PetRepository {
         fun encode(roster: PetRosterEntity): String =
             json.encodeToString(Envelope.serializer(), Envelope(SCHEMA_VERSION, roster))
 
-        /** Reads a save; `null` for corrupt saves or unknown versions. */
+        /** Lee una partida guardada; `null` si está corrupta o es de una versión desconocida. */
         fun decode(raw: String): PetRosterEntity? = try {
             val envelope = json.decodeFromString(Envelope.serializer(), raw)
             if (envelope.v == SCHEMA_VERSION) envelope.roster else null
         } catch (e: Exception) {
-            // Corrupt or incompatible save: start fresh rather than crash.
+            // Partida corrupta o incompatible: empezar de cero en lugar de fallar.
             println("Discarding unreadable pet save: $e")
             null
         }

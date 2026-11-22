@@ -8,15 +8,15 @@ import com.petbattle.shared_features.pet_skills.domain.entities.SlowEffect
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
 
 /**
- * Which skills each pet can learn. Skills come from three sources: its
- * element, its type, and a specific species *with* a specific type (so a type
- * can develop different skills depending on the species).
+ * Qué habilidades puede aprender cada mascota. Las habilidades provienen de tres fuentes: su
+ * elemento, su tipo, y una especie concreta *con* un tipo concreto (así un tipo puede
+ * desarrollar habilidades distintas según la especie).
  *
- * Every pet knows the skill of its element from level 0: it's its basic
- * attack ([basicAttackFor]). Type and species+type tables are still empty.
+ * Toda mascota conoce la habilidad de su elemento desde el nivel 0: es su ataque básico
+ * ([basicAttackFor]). Las tablas de tipo y de especie+tipo siguen vacías.
  */
 object PetSkillsCatalog {
-    /** Fire: 1.2x the hit's damage, dealt as a burn over 3 seconds. */
+    /** Fuego: 1,2x el daño del golpe, aplicado como quemadura durante 3 segundos. */
     val fireBurn = PetSkillEntity(
         id = "fire_burn",
         name = "Llamarada",
@@ -25,7 +25,7 @@ object PetSkillsCatalog {
         effect = BurnEffect(damageMultiplier = 1.2, seconds = 3.0),
     )
 
-    /** Water: slows the target down. */
+    /** Agua: ralentiza al objetivo. */
     val waterSlow = PetSkillEntity(
         id = "water_slow",
         name = "Marea",
@@ -34,7 +34,7 @@ object PetSkillsCatalog {
         effect = SlowEffect(speedFactor = 0.5, seconds = 2.0),
     )
 
-    /** Air: pushes the target a little back along its path. */
+    /** Aire: empuja al objetivo un poco hacia atrás por su camino. */
     val airGust = PetSkillEntity(
         id = "air_gust",
         name = "Ráfaga",
@@ -43,7 +43,7 @@ object PetSkillsCatalog {
         effect = KnockbackEffect(distance = 30.0),
     )
 
-    /** Earth: a plain, honest rock. */
+    /** Tierra: una roca simple y honesta. */
     val earthRock = PetSkillEntity(
         id = "earth_rock",
         name = "Roca",
@@ -60,10 +60,10 @@ object PetSkillsCatalog {
 
     val byType: Map<PetType, List<PetSkillEntity>> = emptyMap()
 
-    /** Skills a type only develops in a given species. */
+    /** Habilidades que un tipo solo desarrolla en una especie dada. */
     val bySpeciesType: Map<Pair<PetSpecies, PetType>, List<PetSkillEntity>> = emptyMap()
 
-    /** Everything a pet could ever learn, unlocked or not. */
+    /** Todo lo que una mascota podría llegar a aprender, desbloqueado o no. */
     fun allFor(
         species: PetSpecies,
         skills: PetSkillsEntity,
@@ -76,7 +76,7 @@ object PetSkillsCatalog {
         addAll(speciesTypeTable[species to skills.type].orEmpty())
     }.toList()
 
-    /** Skills already available at the pet's current level. */
+    /** Habilidades ya disponibles en el nivel actual de la mascota. */
     fun unlockedFor(
         species: PetSpecies,
         skills: PetSkillsEntity,
@@ -86,7 +86,7 @@ object PetSkillsCatalog {
     ) = allFor(species, skills, elementTable, typeTable, speciesTypeTable)
         .filter { skills.level >= it.unlockLevel }
 
-    /** The skill a pet attacks with: the one of its element. */
+    /** La habilidad con la que ataca una mascota: la de su elemento. */
     fun basicAttackFor(skills: PetSkillsEntity): PetSkillEntity =
         byElement.getValue(skills.element).first()
 }

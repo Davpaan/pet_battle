@@ -7,12 +7,12 @@ import com.petbattle.shared_features.pet_skills.domain.entities.KnockbackEffect
 import com.petbattle.shared_features.pet_skills.domain.entities.SkillEffectEntity
 import com.petbattle.shared_features.pet_skills.domain.entities.SlowEffect
 
-/** What a hit did: the enemy afterwards and how far it was pushed back. */
+/** Lo que hizo un golpe: el enemigo resultante y cuánto fue empujado hacia atrás. */
 data class HitOutcome(val enemy: EnemyEntity, val knockback: Double = 0.0)
 
-/** How a skill's effect turns a hit into changes on the enemy. */
+/** Cómo el efecto de una habilidad convierte un golpe en cambios sobre el enemigo. */
 object CombatRules {
-    /** [damage] already includes level and status (DefenseRules.shotDamage). */
+    /** [damage] ya incluye nivel y estado (DefenseRules.shotDamage). */
     fun applyHit(enemy: EnemyEntity, damage: Double, effect: SkillEffectEntity, petId: String) =
         when (effect) {
             DirectDamageEffect -> HitOutcome(enemy.hit(damage, petId))

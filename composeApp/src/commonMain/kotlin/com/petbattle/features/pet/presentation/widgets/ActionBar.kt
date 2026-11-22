@@ -36,7 +36,7 @@ fun ActionBar(
 ) {
     val sleeping = pet.status.isSleeping
     Row(modifier.padding(12.dp)) {
-        // Rules decide availability; the UI just reflects them.
+        // Las reglas deciden la disponibilidad; la UI solo las refleja.
         ActionButton(Icons.Filled.Restaurant, "Alimentar", if (PetStatusRules.canFeed(pet.status)) onFeed else null)
         ActionButton(if (sleeping) Icons.Filled.WbSunny else Icons.Filled.Bedtime, if (sleeping) "Despertar" else "Dormir", onToggleSleep)
         ActionButton(Icons.Filled.Shower, "Limpiar", if (PetStatusRules.canClean(pet.status)) onClean else null)

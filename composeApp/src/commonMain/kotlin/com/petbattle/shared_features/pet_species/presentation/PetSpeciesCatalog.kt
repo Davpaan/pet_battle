@@ -16,20 +16,20 @@ import com.petbattle.resources.pet_wood_thrush
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import org.jetbrains.compose.resources.DrawableResource
 
-/** Layout shared by every bird spritesheet: a 4x4 grid of 64x64 frames. */
+/** Disposición común a todos los spritesheets de pájaros: cuadrícula 4x4 de frames de 64x64. */
 object BirdSheet {
-    /** Side of one frame in texels; on-screen sizes are integer multiples. */
+    /** Lado de un frame en texels; los tamaños en pantalla son múltiplos enteros. */
     const val FRAME_SIZE = 64
     const val COLUMNS = 4
 
-    /** Row index of each animation in the sheet. */
+    /** Índice de fila de cada animación en la hoja. */
     const val FLY_ROW = 0
     const val REACT_ROW = 1
     const val IDLE_ROW = 2
     const val HOP_ROW = 3
 }
 
-/** Presentation data for each species: display name and spritesheet. */
+/** Datos de presentación de cada especie: nombre visible y spritesheet. */
 val PetSpecies.label: String
     get() = when (this) {
         PetSpecies.cardinal -> "Cardenal"

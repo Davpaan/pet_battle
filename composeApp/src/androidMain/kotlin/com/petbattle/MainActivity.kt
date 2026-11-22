@@ -28,6 +28,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (::controller.isInitialized) controller.tick() // catch up the time spent in background
+        if (::controller.isInitialized) controller.tick() // pone al día el tiempo pasado en segundo plano
     }
 }

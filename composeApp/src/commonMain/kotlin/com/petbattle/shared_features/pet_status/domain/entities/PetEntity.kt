@@ -5,9 +5,9 @@ import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import kotlinx.serialization.Serializable
 
 /**
- * One raised pet: who it is ([id], [name], [species]), how it is doing
- * ([status]) and what it can do in combat ([skills]). Status and skills are
- * separate entities with their own rules.
+ * Una mascota criada: quién es ([id], [name], [species]), cómo está
+ * ([status]) y qué puede hacer en combate ([skills]). Estado y habilidades son
+ * entidades separadas con sus propias reglas.
  */
 @Serializable
 data class PetEntity(
@@ -18,7 +18,7 @@ data class PetEntity(
     val skills: PetSkillsEntity,
 ) {
     companion object {
-        /** A freshly adopted pet: level 0, traits taken from its species. */
+        /** Una mascota recién adoptada: nivel 0, con los rasgos de su especie. */
         fun newborn(name: String, species: PetSpecies, now: Long, id: String? = null) = PetEntity(
             id = id ?: "${species.name}-$now",
             name = name,

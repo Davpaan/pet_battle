@@ -82,9 +82,9 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
- * Tower-defense run with every pet the player has raised. Landscape while
- * open; the exit button is always available. XP and tiredness from fighting
- * go straight to [PetController], which auto-saves them.
+ * Partida de tower defense con todas las mascotas que el jugador ha criado. Horizontal
+ * mientras está abierta; el botón de salir siempre está disponible. La XP y el
+ * cansancio del combate van directamente a [PetController], que los guarda solo.
  */
 @Composable
 fun DefenseScreen(controller: PetController, onExit: () -> Unit, map: DefenseMapEntity = jungleCampMap) {
@@ -129,7 +129,7 @@ fun DefenseScreen(controller: PetController, onExit: () -> Unit, map: DefenseMap
                 }
             },
         ) {
-            frame // redraw every frame
+            frame // redibuja en cada frame
             val (s, offset) = fit(size.width, size.height, map)
             translate(offset.x, offset.y) {
                 scale(s, s, pivot = Offset.Zero) { drawDefense(game, sprites, text) }
@@ -139,7 +139,7 @@ fun DefenseScreen(controller: PetController, onExit: () -> Unit, map: DefenseMap
     }
 }
 
-/** Letterboxed fit of the whole map: (scale, top-left offset). */
+/** Ajuste con bandas del mapa completo: (escala, desplazamiento superior izquierdo). */
 private fun fit(w: Float, h: Float, map: DefenseMapEntity): Pair<Float, Offset> {
     val s = min(w / map.width, h / map.height)
     return s to Offset((w - map.width * s) / 2, (h - map.height * s) / 2)
@@ -214,8 +214,8 @@ private fun HudChip(icon: ImageVector, text: String) {
 }
 
 /**
- * Raised pets available for the run. The selected one is placed by the next
- * tap on the map; placed pets are marked and can't be placed again.
+ * Mascotas criadas disponibles para la partida. La seleccionada se coloca con el próximo
+ * toque en el mapa; las ya colocadas se marcan y no se pueden colocar de nuevo.
  */
 @Composable
 private fun PetBar(hud: DefenseHudState, pets: List<PetEntity>, onSelect: (String) -> Unit, modifier: Modifier) {

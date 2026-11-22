@@ -22,7 +22,7 @@ fun main() {
     application {
         Window(
             onCloseRequest = {
-                // Make sure the last changes hit the disk before quitting.
+                // Asegura que los últimos cambios lleguen al disco antes de salir.
                 controller.roster.value?.let { runBlocking { repository.save(it) } }
                 exitApplication()
             },

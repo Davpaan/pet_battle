@@ -35,13 +35,13 @@ import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import com.petbattle.shared_features.pet_status.application.PetController
 
 /**
- * Main screen: the active pet in its little world, its status and the
- * actions. The only place where the controller and the scene meet.
+ * Pantalla principal: la mascota activa en su pequeño mundo, su estado y las
+ * acciones. El único lugar donde se encuentran el controlador y la escena.
  */
 @Composable
 fun PetScreen(controller: PetController, onDefend: () -> Unit) {
     val roster by controller.roster.collectAsState()
-    var picker by remember { mutableStateOf<String?>(null) } // sheet title, null = closed
+    var picker by remember { mutableStateOf<String?>(null) } // título de la hoja, null = cerrada
     var naming by remember { mutableStateOf<PetSpecies?>(null) }
 
     Box(Modifier.fillMaxSize()) {
@@ -78,8 +78,8 @@ fun PetScreen(controller: PetController, onDefend: () -> Unit) {
                 title = title,
                 onPicked = { species ->
                     picker = null
-                    // Back to the raised pet of that species, or adopt a new one
-                    // after naming it: a pet can't be saved without a name.
+                    // Vuelve a la mascota criada de esa especie, o adopta una nueva
+                    // tras ponerle nombre: una mascota no se puede guardar sin nombre.
                     val raised = current.bySpecies(species)
                     if (raised != null) controller.switchTo(raised.id) else naming = species
                 },
@@ -105,7 +105,7 @@ private fun PetSceneBackgroundOnly() {
     }
 }
 
-/** Shown until the first pet is adopted. */
+/** Se muestra hasta que se adopta la primera mascota. */
 @Composable
 private fun FirstPetCard(onPick: () -> Unit, modifier: Modifier = Modifier) {
     Card(modifier.padding(24.dp)) {

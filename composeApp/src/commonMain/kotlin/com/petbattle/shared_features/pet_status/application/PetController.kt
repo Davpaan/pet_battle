@@ -19,11 +19,11 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * Orchestrates every raised pet: loads the roster, applies offline decay to
- * the active pet, runs its live tick, translates player intents into
- * [PetStatusRules] / [RosterRules] calls and auto-saves every change.
+ * Orquesta todas las mascotas criadas: carga el plantel, aplica la pérdida offline a
+ * la mascota activa, ejecuta su tick en vivo, traduce las intenciones del jugador en
+ * llamadas a [PetStatusRules] / [RosterRules] y guarda automáticamente cada cambio.
  *
- * [roster] is `null` while loading.
+ * [roster] es `null` mientras se carga.
  */
 class PetController(
     private val repository: PetRepository,
@@ -37,15 +37,15 @@ class PetController(
     private var ticker: Job? = null
     private var pendingSave: Job? = null
 
-    /** Loads the save (or an empty roster) and starts the live tick. */
+    /** Carga la partida (o un plantel vacío) e inicia el tick en vivo. */
     suspend fun load() {
         val now = clock.nowMillis()
         val saved = repository.load()
         if (saved == null) {
-            // Nothing raised yet: the UI asks for a first species and a name.
+            // Aún no hay nada criado: la UI pide una primera especie y un nombre.
             _roster.value = PetRosterEntity.empty
         } else {
-            // Offline catch-up (active pet only; resting pets are frozen).
+            // Puesta al día offline (solo la mascota activa; las que descansan están congeladas).
             val roster = RosterRules.updateActiveStatus(saved) { PetStatusRules.advanceTo(it, now) }
             repository.save(roster)
             _roster.value = roster
@@ -53,14 +53,14 @@ class PetController(
         if (autoTick) startTicker()
     }
 
-    // --- Player intents ---------------------------------------------------------
+    // --- Intenciones del jugador ----------------------------------------------------
 
     fun feed() = applyToActive(PetStatusRules::feed)
     fun toggleSleep() = applyToActive(PetStatusRules::toggleSleep, saveNow = true)
     fun clean() = applyToActive(PetStatusRules::clean)
     fun cuddle() = applyToActive(PetStatusRules::cuddle)
 
-    /** Raises a new level-0 pet named [name]; returns why the name was rejected. */
+    /** Cría una mascota nueva de nivel 0 llamada [name]; devuelve por qué se rechazó el nombre. */
     fun adopt(species: PetSpecies, name: String): PetNameError? {
         val roster = _roster.value ?: return null
         if (!RosterRules.canAdopt(roster, species)) return null
@@ -70,26 +70,26 @@ class PetController(
         return null
     }
 
-    /** Goes back to an already raised pet; the current one starts resting. */
+    /** Vuelve a una mascota ya criada; la actual empieza a descansar. */
     fun switchTo(petId: String) {
         val roster = _roster.value ?: return
         val now = clock.nowMillis()
         set(RosterRules.switchTo(advanceActive(roster, now), petId, now), saveNow = true)
     }
 
-    /** Experience earned by pet [petId] (e.g. enemies it defeated). */
+    /** Experiencia ganada por la mascota [petId] (p. ej. enemigos derrotados). */
     fun awardXp(petId: String, amount: Int) {
         val roster = _roster.value ?: return
         set(RosterRules.awardXp(roster, petId, amount))
     }
 
-    /** Pet [petId] got tired by fighting (e.g. one shot fired). */
+    /** La mascota [petId] se cansó luchando (p. ej. un disparo efectuado). */
     fun spendEnergy(petId: String, amount: Double) {
         val roster = _roster.value ?: return
         set(RosterRules.spendEnergy(roster, petId, amount))
     }
 
-    /** Debug helper: wipe the save (every raised pet). */
+    /** Ayuda de depuración: borra la partida (todas las mascotas criadas). */
     fun reset() {
         scope.launch {
             repository.clear()
@@ -97,7 +97,7 @@ class PetController(
         }
     }
 
-    /** Writes any pending change now (app paused / window closing). */
+    /** Escribe ahora cualquier cambio pendiente (app en pausa / ventana cerrándose). */
     fun flush() {
         pendingSave?.cancel()
         pendingSave = null
@@ -110,9 +110,9 @@ class PetController(
         flush()
     }
 
-    // --- Internals ----------------------------------------------------------------
+    // --- Internos -------------------------------------------------------------------
 
-    /** Brings the active pet's status up to "now" first, then applies [action]. */
+    /** Primero actualiza el estado de la mascota activa hasta "ahora" y luego aplica [action]. */
     private fun applyToActive(action: (PetStatusEntity) -> PetStatusEntity, saveNow: Boolean = false) {
         val roster = _roster.value ?: return
         val now = clock.nowMillis()
@@ -128,7 +128,7 @@ class PetController(
         if (saveNow) flush() else scheduleSave()
     }
 
-    /** Ticks catch the active pet up to "now" once per second. */
+    /** Los ticks ponen al día a la mascota activa hasta "ahora" una vez por segundo. */
     fun tick() = applyToActive({ it })
 
     private fun startTicker() {
@@ -141,7 +141,7 @@ class PetController(
         }
     }
 
-    /** Throttled save: at most one write every [AppConfig.SAVE_THROTTLE_MS]. */
+    /** Guardado limitado: como máximo una escritura cada [AppConfig.SAVE_THROTTLE_MS]. */
     private fun scheduleSave() {
         if (pendingSave != null) return
         pendingSave = scope.launch {

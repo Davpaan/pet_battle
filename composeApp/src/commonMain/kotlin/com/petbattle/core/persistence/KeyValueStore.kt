@@ -1,9 +1,9 @@
 package com.petbattle.core.persistence
 
 /**
- * Single app-wide key/value store. Android backs it with SharedPreferences,
- * desktop with a small JSON file in the user's home. Repositories depend on
- * this interface, so tests can use an in-memory one.
+ * Almacén clave/valor único de toda la app. En Android usa SharedPreferences,
+ * en escritorio un pequeño archivo JSON en el home del usuario. Los repositorios dependen de
+ * esta interfaz, así que los tests pueden usar una en memoria.
  */
 interface KeyValueStore {
     suspend fun getString(key: String): String?

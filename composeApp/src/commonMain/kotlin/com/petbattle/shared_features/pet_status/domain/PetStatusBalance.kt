@@ -1,44 +1,47 @@
 package com.petbattle.shared_features.pet_status.domain
 
 /**
- * Tuning values for pet status (hunger, tiredness, fun, hygiene) and how it
- * affects combat. Pure data, no logic: tweak freely.
+ * Valores de ajuste del estado de la mascota (hambre, cansancio, diversión, higiene) y de cómo
+ * afecta al combate. Solo datos, sin lógica: modifícalos con libertad.
  */
 object PetStatusBalance {
     const val MIN_STAT = 0.0
     const val MAX_STAT = 100.0
 
-    /** Multiplies the passage of time for every rule. */
+    /** Multiplica el paso del tiempo en todas las reglas. */
     const val TIME_SCALE = 1.0
 
-    // Decay per real hour while awake. Energy (tiredness) does NOT decay with
-    // time: only fighting spends it.
+    // Pérdida por hora real mientras está despierta. La energía (cansancio) NO decae con
+    // el tiempo: solo se gasta luchando.
     const val SATIETY_DECAY_PER_HOUR = 18.0
     const val HAPPINESS_DECAY_PER_HOUR = 12.0
     const val HYGIENE_DECAY_PER_HOUR = 8.0
 
-    /** While sleeping energy recovers fast: empty to full in ~10 seconds. */
+    /** Durmiendo, la energía se recupera rápido: de vacía a llena en ~10 segundos. */
     const val SLEEP_ENERGY_REGEN_PER_HOUR = MAX_STAT / 10 * 3600
 
-    /** While sleeping everything else decays slower. */
+    /** Durmiendo, todo lo demás decae más despacio. */
     const val SLEEP_DECAY_MULTIPLIER = 0.4
 
-    /** Any stat under this is "neglected" and accelerates happiness decay. */
+    /**
+     * Cualquier estadística por debajo de esto está "descuidada" y acelera la pérdida de
+     * felicidad.
+     */
     const val NEGLECT_THRESHOLD = 20.0
-    const val NEGLECT_HAPPINESS_PENALTY = 0.5 // +50% per neglected stat
+    const val NEGLECT_HAPPINESS_PENALTY = 0.5 // +50% por estadística descuidada
 
-    // Actions.
+    // Acciones.
     const val FEED_SATIETY = 25.0
     const val FEED_HYGIENE_COST = 3.0
     const val CLEAN_HYGIENE = 45.0
 
-    /** Happiness gained per tap on the pet. */
+    /** Felicidad ganada por cada toque a la mascota. */
     const val CUDDLE_HAPPINESS = 2.0
 
-    /** Energy spent by every shot a pet fires. */
+    /** Energía gastada por cada disparo de la mascota. */
     const val ENERGY_PER_SHOT = 1.0
 
-    /** Offline catch-up granularity (ms) and cap (ms). */
+    /** Granularidad (ms) y límite (ms) de la puesta al día sin conexión. */
     const val SIMULATION_STEP_MS = 60_000L
     const val MAX_OFFLINE_CATCH_UP_MS = 7L * 24 * 3600 * 1000
 }

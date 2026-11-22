@@ -8,21 +8,20 @@ import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import kotlinx.serialization.Serializable
 
 /**
- * What a pet can do in combat and how far it has grown: its element and type
- * (which decide the skills it can learn), its level and its XP. Kept apart
- * from the day-to-day status (hunger, tiredness...): skills only change by
- * fighting.
+ * Lo que una mascota puede hacer en combate y cuánto ha crecido: su elemento y tipo (que
+ * deciden las habilidades que puede aprender), su nivel y su XP. Separado del estado diario
+ * (hambre, cansancio...): las habilidades solo cambian peleando.
  */
 @Serializable
 data class PetSkillsEntity(
     val element: PetElement,
     val type: PetType,
     val level: Int = 0,
-    /** Experience accumulated towards the next level (resets on level-up). */
+    /** Experiencia acumulada hacia el siguiente nivel (se reinicia al subir de nivel). */
     val xp: Int = 0,
 ) {
     companion object {
-        /** Level 0 with the natural traits of [species]. */
+    /** Nivel 0 con los rasgos naturales de [species]. */
         fun forSpecies(species: PetSpecies) =
             PetSkillsEntity(element = species.element, type = species.type)
     }

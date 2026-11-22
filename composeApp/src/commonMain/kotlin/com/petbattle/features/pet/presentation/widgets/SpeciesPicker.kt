@@ -32,8 +32,8 @@ import com.petbattle.shared_features.pet_status.domain.entities.PetEntity
 import com.petbattle.shared_features.pet_status.domain.entities.PetRosterEntity
 
 /**
- * Species menu. Raised species show their pet's name and level; the rest are
- * marked as new (picking one adopts a new pet at level 0).
+ * Menú de especies. Las especies criadas muestran el nombre y nivel de su mascota; el resto se
+ * marcan como nuevas (elegir una adopta una mascota nueva de nivel 0).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

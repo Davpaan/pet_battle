@@ -3,26 +3,27 @@ package com.petbattle.features.defense.domain.entities
 import com.petbattle.shared_features.pet_skills.domain.PetProgression
 import kotlin.math.min
 
-/** A damage-over-time effect burning an enemy. */
+/** Un efecto de daño con el tiempo que quema a un enemigo. */
 data class EnemyBurn(
     val damagePerSecond: Double,
     val secondsLeft: Double,
-    /** Pet that set it on fire: credited if the burn finishes the enemy. */
+    /** Mascota que lo prendió fuego: se le acredita si la quemadura remata al enemigo. */
     val byPetId: String,
 )
 
 /**
- * One enemy of a defense run: its level, remaining hit points and the effects
- * currently on it (burns, slow). Immutable: every change returns a new enemy.
+ * Un enemigo de una partida de defensa: su nivel, sus puntos de vida restantes y los
+ * efectos que tiene activos (quemaduras, ralentización). Inmutable: cada cambio
+ * devuelve un enemigo nuevo.
  */
 data class EnemyEntity(
     val level: Int,
     val hp: Double,
     val burns: List<EnemyBurn> = emptyList(),
-    /** Speed multiplier while slowed (1 = normal speed). */
+    /** Multiplicador de velocidad mientras está ralentizado (1 = velocidad normal). */
     val slowFactor: Double = 1.0,
     val slowSecondsLeft: Double = 0.0,
-    /** Pet whose damage landed last: the one credited for the kill. */
+    /** Mascota cuyo daño impactó en último lugar: la que se lleva el mérito de la baja. */
     val lastHitBy: String? = null,
 ) {
     val maxHp get() = maxHpFor(level)
@@ -30,23 +31,23 @@ data class EnemyEntity(
     val isBurning get() = burns.isNotEmpty()
     val isSlowed get() = slowSecondsLeft > 0
 
-    /** Multiplier to apply to the walking speed right now. */
+    /** Multiplicador a aplicar ahora a la velocidad de marcha. */
     val speedFactor get() = if (isSlowed) slowFactor else 1.0
 
-    /** Remaining health, 0..1. */
+    /** Salud restante, 0..1. */
     val healthFraction get() = (hp / maxHp).coerceIn(0.0, 1.0)
 
-    /** Instant damage. */
+    /** Daño instantáneo. */
     fun hit(damage: Double, byPetId: String? = null) =
         if (damage <= 0) this else copy(hp = hp - damage, lastHitBy = byPetId ?: lastHitBy)
 
-    /** Sets it on fire: [totalDamage] dealt evenly over [seconds]. Burns stack. */
+    /** Lo prende fuego: [totalDamage] repartido uniformemente durante [seconds]. Las quemaduras se acumulan. */
     fun burn(totalDamage: Double, seconds: Double, byPetId: String): EnemyEntity {
         if (totalDamage <= 0 || seconds <= 0) return this
         return copy(burns = burns + EnemyBurn(totalDamage / seconds, seconds, byPetId))
     }
 
-    /** Slows don't stack: the strongest factor and the longest time win. */
+    /** Las ralentizaciones no se acumulan: gana el factor más fuerte y el tiempo más largo. */
     fun slow(factor: Double, seconds: Double): EnemyEntity {
         if (seconds <= 0 || factor >= 1) return this
         return copy(
@@ -55,7 +56,7 @@ data class EnemyEntity(
         )
     }
 
-    /** Lets [dt] seconds pass: burns deal their damage, effects wear off. */
+    /** Deja pasar [dt] segundos: las quemaduras hacen su daño y los efectos se disipan. */
     fun tick(dt: Double): EnemyEntity {
         if (dt <= 0 || (!isBurning && !isSlowed)) return this
         var damage = 0.0
@@ -80,18 +81,18 @@ data class EnemyEntity(
     companion object {
         const val MIN_LEVEL = 1
 
-        /** Hit points per enemy level: level 1 = 1.2, level 2 = 2.4... */
+        /** Puntos de vida por nivel de enemigo: nivel 1 = 1.2, nivel 2 = 2.4... */
         const val HP_PER_LEVEL = 1.2
 
-        /** Every defeated enemy is worth this much XP to its killer. */
+        /** Cada enemigo derrotado vale esta cantidad de XP para quien lo mata. */
         const val XP_REWARD = PetProgression.XP_PER_ENEMY
 
-        // 1.2 * n is not exact in floating point.
+        // 1.2 * n no es exacto en coma flotante.
         private const val EPSILON = 1e-9
 
         fun maxHpFor(level: Int) = HP_PER_LEVEL * level
 
-        /** A fresh enemy of [level] (1 is the weakest) at full health. */
+        /** Un enemigo nuevo de nivel [level] (1 es el más débil) con la salud completa. */
         fun spawn(level: Int): EnemyEntity {
             val l = maxOf(level, MIN_LEVEL)
             return EnemyEntity(level = l, hp = maxHpFor(l))

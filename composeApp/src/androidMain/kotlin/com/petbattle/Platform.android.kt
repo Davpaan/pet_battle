@@ -5,7 +5,7 @@ import com.petbattle.core.persistence.KeyValueStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** SharedPreferences-backed store (one small JSON string per key). */
+/** Almacén respaldado por SharedPreferences (una pequeña cadena JSON por clave). */
 class AndroidKeyValueStore(context: Context) : KeyValueStore {
     private val prefs = context.getSharedPreferences("pet_battle", Context.MODE_PRIVATE)
     override suspend fun getString(key: String): String? =

@@ -11,10 +11,10 @@ import androidx.compose.ui.unit.IntSize
 import kotlin.math.roundToInt
 
 /**
- * Draws one [frame]x[frame] cell (column [col], row [row]) of a spritesheet
- * into the square of side [size] whose top-left is [topLeft], with
- * nearest-neighbour sampling so pixel art stays crisp. [flipX] mirrors it
- * around its own centre.
+ * Dibuja una celda [frame]x[frame] (columna [col], fila [row]) de un spritesheet
+ * en el cuadrado de lado [size] cuyo vértice superior izquierdo es [topLeft], con
+ * muestreo nearest-neighbour para que el pixel art se vea nítido. [flipX] lo refleja
+ * respecto a su propio centro.
  */
 fun DrawScope.drawSpriteFrame(
     image: ImageBitmap,

@@ -23,7 +23,7 @@ private val AppColors = lightColorScheme(
     surface = Color(0xFFF5FBF6),
 )
 
-/** Root: the pet screen, and the defense mode on top of it. */
+/** Raíz: la pantalla de mascota y, encima, el modo defensa. */
 @Composable
 fun App(controller: PetController) {
     var screen by remember { mutableStateOf(Screen.Pet) }
