@@ -1,0 +1,14 @@
+# Gradle / Kotlin
+.gradle/
+.kotlin/
+build/
+**/build/
+local.properties
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.DS_Store
+captures/
+*.miff
