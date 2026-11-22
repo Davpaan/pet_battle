@@ -33,7 +33,7 @@ object BirdSheet {
 val PetSpecies.label: String
     get() = when (this) {
         PetSpecies.cardinal -> "Cardenal"
-        PetSpecies.blueJay -> "Arrendajo azul"
+        PetSpecies.blueJay -> "Arrendajo"
         PetSpecies.cedarWaxwing -> "Ampelis"
         PetSpecies.chickadee -> "Carbonero"
         PetSpecies.crow -> "Cuervo"

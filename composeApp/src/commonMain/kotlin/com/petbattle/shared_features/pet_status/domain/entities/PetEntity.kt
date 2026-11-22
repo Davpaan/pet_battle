@@ -1,7 +1,9 @@
 package com.petbattle.shared_features.pet_status.domain.entities
 
+import com.petbattle.shared_features.biomes.domain.Biome
 import com.petbattle.shared_features.pet_skills.domain.entities.PetSkillsEntity
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
+import com.petbattle.shared_features.pet_species.domain.biomes
 import kotlinx.serialization.Serializable
 
 /**
@@ -17,6 +19,12 @@ data class PetEntity(
     val status: PetStatusEntity,
     val skills: PetSkillsEntity,
 ) {
+    /**
+     * Biomas donde vive la mascota, según su especie. Se calcula (no se guarda) para que
+     * cambiar el mapeo especie -> biomas actualice también las partidas guardadas.
+     */
+    val biomes: List<Biome> get() = species.biomes
+
     companion object {
         /** Una mascota recién adoptada: nivel 0, con los rasgos de su especie. */
         fun newborn(name: String, species: PetSpecies, now: Long, id: String? = null) = PetEntity(

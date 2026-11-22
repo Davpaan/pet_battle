@@ -1,6 +1,7 @@
 package com.petbattle.shared_features
 
 import com.petbattle.core.persistence.InMemoryKeyValueStore
+import com.petbattle.shared_features.biomes.domain.Biome
 import com.petbattle.shared_features.pet_skills.domain.PetElement
 import com.petbattle.shared_features.pet_skills.domain.PetProgression
 import com.petbattle.shared_features.pet_skills.domain.PetSkillsCatalog
@@ -9,9 +10,9 @@ import com.petbattle.shared_features.pet_skills.domain.element
 import com.petbattle.shared_features.pet_skills.domain.entities.BurnEffect
 import com.petbattle.shared_features.pet_skills.domain.entities.PetSkillEntity
 import com.petbattle.shared_features.pet_skills.domain.entities.PetSkillsEntity
-import com.petbattle.shared_features.pet_skills.domain.habitat
 import com.petbattle.shared_features.pet_skills.domain.type
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
+import com.petbattle.shared_features.pet_species.domain.biomes
 import com.petbattle.shared_features.pet_status.data.LocalPetRepository
 import com.petbattle.shared_features.pet_status.domain.PetNameError
 import com.petbattle.shared_features.pet_status.domain.RosterRules
@@ -28,6 +29,12 @@ class RosterAndSkillsTest {
     private val now = 1_767_268_800_000L
     private fun adopt(r: PetRosterEntity, s: PetSpecies, n: String) = RosterRules.adopt(r, s, n, now)
 
+    @Test fun everySpeciesHasBiomesAndEveryBiomeHasSpecies() {
+        for (s in PetSpecies.entries) assertTrue(s.biomes.isNotEmpty(), s.name)
+        val covered = PetSpecies.entries.flatMap { it.biomes }.toSet()
+        assertEquals(Biome.entries.toSet(), covered)
+    }
+
     @Test fun speciesTraits() {
         for (s in PetSpecies.entries) {
             val expected = when (s) {
@@ -36,7 +43,6 @@ class RosterAndSkillsTest {
                 else -> PetType.elemental
             }
             assertEquals(expected, s.type, s.name)
-            assertEquals(s.habitat.element, s.element)
         }
         assertEquals(PetElement.fire, PetSpecies.cardinal.element)
         assertEquals(PetElement.water, PetSpecies.woodThrush.element)
