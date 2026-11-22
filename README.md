@@ -35,10 +35,18 @@ La partida se guarda sola: en Android en SharedPreferences y en escritorio en
 
 ## Cómo se juega
 
-- **Mascota**: elige una especie y ponle nombre (obligatorio). Cada especie se
-  cría una vez y empieza en el nivel 0. Aliméntala, límpiala, mándala a dormir
-  y tócala para subir su diversión.
-- **Defender**: coloca en la hierba cada mascota que hayas criado. Los enemigos
+- **Biomas**: al empezar eliges un bioma (bosque, pradera, montaña, coníferas, prado,
+  tundra, tierras altas o costa); nunca eliges la especie. Desde el menú superior puedes
+  criar una **nueva mascota** en el bioma actual o ir a **otro bioma** (si es nuevo, empieza
+  vacío). Varias mascotas pueden convivir en un bioma y puedes volver a cualquiera cuando
+  quieras.
+- **Polluelos**: toda mascota nace como polluelo (hay que ponerle nombre). Come de todo y,
+  tras 10 comidas, crece en una especie adulta de su bioma que coma su comida favorita (la
+  que más veces le has dado). Si hay empate, o ninguna especie del bioma come eso, se elige
+  al azar entre las del bioma.
+- **Cuidados**: aliméntala (eligiendo la comida: los adultos rechazan lo que no es de su
+  dieta), límpiala, mándala a dormir y tócala para subir su diversión.
+- **Defender**: coloca en la hierba las mascotas adultas del bioma actual (los polluelos no luchan). Los enemigos
   avanzan por el camino y aceleran cada 10 s; suben de nivel cada 20 s.
 - **Progresión**: 1 XP por enemigo derrotado; pasar del nivel n al n+1 cuesta
   10·(n+1) XP. Máximo nivel 10.

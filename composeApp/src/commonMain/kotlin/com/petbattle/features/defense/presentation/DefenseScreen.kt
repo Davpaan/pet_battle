@@ -53,7 +53,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
-import com.petbattle.core.ui.LandscapeWhileShown
 import com.petbattle.core.ui.PlatformBackHandler
 import com.petbattle.features.defense.domain.entities.DefenseMapEntity
 import com.petbattle.features.defense.domain.maps.jungleCampMap
@@ -72,6 +71,7 @@ import com.petbattle.resources.skill_water
 import com.petbattle.shared_features.pet_skills.domain.PetElement
 import com.petbattle.shared_features.pet_skills.domain.PetProgression
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
+import com.petbattle.shared_features.pet_species.domain.isChick
 import com.petbattle.shared_features.pet_species.presentation.sheet
 import com.petbattle.shared_features.pet_species.presentation.widgets.BirdFrame
 import com.petbattle.shared_features.pet_status.application.PetController
@@ -82,17 +82,17 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
- * Partida de tower defense con todas las mascotas que el jugador ha criado. Horizontal
- * mientras está abierta; el botón de salir siempre está disponible. La XP y el
+ * Partida de tower defense con las mascotas adultas del bioma actual. El botón de salir
+ * siempre está disponible. La XP y el
  * cansancio del combate van directamente a [PetController], que los guarda solo.
  */
 @Composable
 fun DefenseScreen(controller: PetController, onExit: () -> Unit, map: DefenseMapEntity = jungleCampMap) {
-    LandscapeWhileShown()
     PlatformBackHandler(onExit)
 
     val roster by controller.roster.collectAsState()
-    val pets = roster?.pets.orEmpty()
+    // Solo combaten los adultos del bioma actual: los polluelos aún no saben luchar.
+    val pets = roster?.biomePets.orEmpty().filter { !it.species.isChick }
     val game = remember {
         DefenseGame(
             map = map,

@@ -13,14 +13,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Celebration
-import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -34,43 +30,57 @@ import androidx.compose.ui.unit.dp
 import com.petbattle.shared_features.pet_skills.domain.PetProgression
 import com.petbattle.shared_features.pet_skills.presentation.ElementChip
 import com.petbattle.shared_features.pet_skills.presentation.TypeChip
+import com.petbattle.shared_features.pet_species.domain.isChick
+import com.petbattle.shared_features.pet_species.presentation.label
+import com.petbattle.shared_features.pet_status.domain.GrowthRules
 import com.petbattle.shared_features.pet_status.domain.PetMood
 import com.petbattle.shared_features.pet_status.domain.entities.PetEntity
 import com.petbattle.shared_features.pet_status.domain.mood
 
+/** Estado de la mascota activa: nombre, especie, ánimo, nivel (o crecimiento) y barras. */
 @Composable
-fun StatusPanel(pet: PetEntity, onChangeSpecies: (() -> Unit)?, modifier: Modifier = Modifier) {
-    Card(
-        modifier.fillMaxWidth().padding(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
-    ) {
-        Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    pet.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                Spacer(Modifier.width(8.dp))
-                AssistChip(onClick = {}, label = { Text(moodLabel(pet.status.mood)) })
-                Spacer(Modifier.weight(1f))
-                if (onChangeSpecies != null) {
-                    IconButton(onClick = onChangeSpecies) {
-                        Icon(Icons.Filled.Pets, contentDescription = "Cambiar mascota")
-                    }
-                }
-            }
-            LevelRow(pet)
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(end = 8.dp)) {
-                StatBar(Icons.Filled.Restaurant, "Hambre", pet.status.satiety, Modifier.weight(1f))
-                StatBar(Icons.Filled.Bolt, "Descanso", pet.status.energy, Modifier.weight(1f))
-                StatBar(Icons.Filled.Celebration, "Diversión", pet.status.happiness, Modifier.weight(1f))
-                StatBar(Icons.Filled.WaterDrop, "Higiene", pet.status.hygiene, Modifier.weight(1f))
-            }
+fun StatusPanel(pet: PetEntity, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                pet.name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(pet.species.label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+            Spacer(Modifier.width(8.dp))
+            AssistChip(onClick = {}, label = { Text(moodLabel(pet.status.mood)) })
         }
+        if (pet.species.isChick) GrowthRow(pet) else LevelRow(pet)
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(end = 8.dp)) {
+            StatBar(Icons.Filled.Restaurant, "Hambre", pet.status.satiety, Modifier.weight(1f))
+            StatBar(Icons.Filled.Bolt, "Descanso", pet.status.energy, Modifier.weight(1f))
+            StatBar(Icons.Filled.Celebration, "Diversión", pet.status.happiness, Modifier.weight(1f))
+            StatBar(Icons.Filled.WaterDrop, "Higiene", pet.status.hygiene, Modifier.weight(1f))
+        }
+    }
+}
+
+/** Mientras es polluelo: cuánto le falta para crecer. */
+@Composable
+private fun GrowthRow(pet: PetEntity) {
+    val eaten = GrowthRules.mealsEaten(pet)
+    Column(Modifier.padding(end = 8.dp)) {
+        LinearProgressIndicator(
+            progress = { (eaten.toFloat() / GrowthRules.MEALS_TO_GROW).coerceIn(0f, 1f) },
+            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+            drawStopIndicator = {},
+            gapSize = 0.dp,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            "Crecimiento: $eaten / ${GrowthRules.MEALS_TO_GROW} comidas · lo que coma decide en qué se convierte",
+            style = MaterialTheme.typography.labelSmall,
+        )
     }
 }
 

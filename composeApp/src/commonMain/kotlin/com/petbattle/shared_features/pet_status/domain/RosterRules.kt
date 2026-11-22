@@ -1,18 +1,21 @@
 package com.petbattle.shared_features.pet_status.domain
 
+import com.petbattle.shared_features.biomes.domain.Biome
+import com.petbattle.shared_features.pet_food.domain.Food
 import com.petbattle.shared_features.pet_skills.domain.PetProgression
-import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import com.petbattle.shared_features.pet_status.domain.entities.PetEntity
 import com.petbattle.shared_features.pet_status.domain.entities.PetRosterEntity
 import com.petbattle.shared_features.pet_status.domain.entities.PetStatusEntity
+import kotlin.random.Random
 
 /** Motivo por el que no se puede usar un nombre. La UI asigna un mensaje a cada caso. */
 enum class PetNameError { empty, tooLong, taken }
 
 /**
  * Reglas puras sobre toda la colección de mascotas criadas.
- * - Una mascota por especie. Elegir una especie que nunca has criado adopta una
- *   mascota nueva de nivel 0 y hay que ponerle nombre.
+ * - El jugador elige bioma, nunca especie. Una mascota nueva es siempre un polluelo del bioma
+ *   actual (hay que ponerle nombre); varias mascotas pueden convivir en el mismo bioma.
+ * - Cambiar de bioma muestra las mascotas que viven allí (o ninguna, si está vacío).
  * - Solo la mascota activa vive en tiempo real. Las demás descansan: sus estadísticas
  *   se congelan mientras están inactivas y se reanudan al volver a elegirlas.
  */
@@ -30,24 +33,66 @@ object RosterRules {
         return null
     }
 
-    fun canAdopt(roster: PetRosterEntity, species: PetSpecies) = !roster.hasRaised(species)
+    /** Solo se puede criar una mascota nueva tras elegir un bioma. */
+    fun canHatch(roster: PetRosterEntity) = roster.currentBiome != null
 
-    /** Añade una mascota nueva de nivel 0 y la activa. Quien llama debe validar antes. */
-    fun adopt(roster: PetRosterEntity, species: PetSpecies, name: String, now: Long): PetRosterEntity {
-        require(canAdopt(roster, species)) { "$species already raised" }
+    /** Añade un polluelo al bioma actual y lo activa. Quien llama debe validar antes. */
+    fun hatch(roster: PetRosterEntity, name: String, now: Long): PetRosterEntity {
+        val biome = requireNotNull(roster.currentBiome) { "no biome chosen" }
         val error = validateName(roster, name)
         require(error == null) { "invalid name: $error" }
-        val pet = PetEntity.newborn(name = normalizeName(name), species = species, now = now)
+        // El número de mascotas evita ids repetidos si se crían dos en el mismo milisegundo.
+        val id = "chick-$now-${roster.pets.size}"
+        val pet = PetEntity.hatch(name = normalizeName(name), biome = biome, now = now, id = id)
         return roster.copy(pets = roster.pets + pet, activeId = pet.id)
     }
 
-    /** Activa [petId]; su reloj se reancla para que el descanso no la haga decaer. */
+    /** Viaja a [biome]: se activa su primera mascota, o ninguna si está vacío. */
+    fun enterBiome(roster: PetRosterEntity, biome: Biome, now: Long): PetRosterEntity {
+        if (biome == roster.currentBiome) return roster
+        val first = roster.petsIn(biome).firstOrNull()
+        val moved = roster.copy(currentBiome = biome, activeId = null)
+        return if (first == null) moved else switchTo(moved, first.id, now)
+    }
+
+    /**
+     * Libera a la mascota [petId]: desaparece para siempre (su nombre vuelve a quedar libre).
+     * Si era la activa, pasa a serlo otra del mismo bioma, o ninguna.
+     */
+    fun release(roster: PetRosterEntity, petId: String, now: Long): PetRosterEntity {
+        val pet = roster.byId(petId) ?: return roster
+        val rest = roster.copy(pets = roster.pets - pet)
+        if (petId != roster.activeId) return rest
+        val next = rest.petsIn(pet.biome).firstOrNull() ?: return rest.copy(activeId = null)
+        return switchTo(rest.copy(activeId = null), next.id, now)
+    }
+
+    /** Activa [petId] (y su bioma); su reloj se reancla para que el descanso no la haga decaer. */
     fun switchTo(roster: PetRosterEntity, petId: String, now: Long): PetRosterEntity {
         val pet = roster.byId(petId) ?: return roster
         if (petId == roster.activeId) return roster
         return roster.replace(pet.copy(status = pet.status.copy(lastUpdatedAt = now)))
-            .copy(activeId = petId)
+            .copy(activeId = petId, currentBiome = pet.biome)
     }
+
+    /**
+     * Ofrece [food] a la mascota activa. Si es un polluelo, cuenta la comida y, al llegar a
+     * GrowthRules.MEALS_TO_GROW, crece. `null` si ahora no se le puede dar de comer.
+     */
+    fun feedActive(roster: PetRosterEntity, food: Food, random: Random): Pair<PetRosterEntity, FeedResult?> {
+        val pet = roster.active ?: return roster to null
+        if (!PetStatusRules.canFeed(pet.status)) return roster to null
+        val (status, result) = PetStatusRules.offerFood(pet.status, food, pet.diet)
+        if (result == FeedResult.rejected) return roster to result
+        val fed = GrowthRules.recordMeal(pet.copy(status = status), food)
+        if (GrowthRules.shouldGrow(fed)) return roster.replace(GrowthRules.grow(fed, random)) to FeedResult.grew
+        return roster.replace(fed) to result
+    }
+
+    /** Partidas de antes de los biomas: se coloca al jugador en el bioma de su mascota activa. */
+    fun migrate(roster: PetRosterEntity): PetRosterEntity =
+        if (roster.currentBiome != null) roster
+        else roster.copy(currentBiome = (roster.active ?: roster.pets.firstOrNull())?.biome)
 
     /** Aplica [change] a la mascota activa (no hace nada si no hay). */
     fun updateActive(roster: PetRosterEntity, change: (PetEntity) -> PetEntity): PetRosterEntity {

@@ -2,7 +2,9 @@ package com.petbattle.shared_features.pet_status.application
 
 import com.petbattle.core.config.AppConfig
 import com.petbattle.core.time.Clock
-import com.petbattle.shared_features.pet_species.domain.PetSpecies
+import com.petbattle.shared_features.biomes.domain.Biome
+import com.petbattle.shared_features.pet_food.domain.Food
+import com.petbattle.shared_features.pet_status.domain.FeedResult
 import com.petbattle.shared_features.pet_status.domain.PetNameError
 import com.petbattle.shared_features.pet_status.domain.PetRepository
 import com.petbattle.shared_features.pet_status.domain.PetStatusRules
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 
 /**
  * Orquesta todas las mascotas criadas: carga el plantel, aplica la pérdida offline a
@@ -30,6 +33,7 @@ class PetController(
     private val clock: Clock,
     private val scope: CoroutineScope,
     private val autoTick: Boolean = true,
+    private val random: Random = Random.Default,
 ) {
     private val _roster = MutableStateFlow<PetRosterEntity?>(null)
     val roster: StateFlow<PetRosterEntity?> = _roster.asStateFlow()
@@ -46,7 +50,7 @@ class PetController(
             _roster.value = PetRosterEntity.empty
         } else {
             // Puesta al día offline (solo la mascota activa; las que descansan están congeladas).
-            val roster = RosterRules.updateActiveStatus(saved) { PetStatusRules.advanceTo(it, now) }
+            val roster = RosterRules.updateActiveStatus(RosterRules.migrate(saved)) { PetStatusRules.advanceTo(it, now) }
             repository.save(roster)
             _roster.value = roster
         }
@@ -55,19 +59,39 @@ class PetController(
 
     // --- Intenciones del jugador ----------------------------------------------------
 
-    fun feed() = applyToActive(PetStatusRules::feed)
+    /** Ofrece [food] a la mascota activa; `null` si ahora no se le puede dar de comer. */
+    fun feed(food: Food): FeedResult? {
+        val roster = _roster.value ?: return null
+        val (next, result) = RosterRules.feedActive(advanceActive(roster, clock.nowMillis()), food, random)
+        if (result != null) set(next, saveNow = result == FeedResult.grew)
+        return result
+    }
     fun toggleSleep() = applyToActive(PetStatusRules::toggleSleep, saveNow = true)
     fun clean() = applyToActive(PetStatusRules::clean)
     fun cuddle() = applyToActive(PetStatusRules::cuddle)
 
-    /** Cría una mascota nueva de nivel 0 llamada [name]; devuelve por qué se rechazó el nombre. */
-    fun adopt(species: PetSpecies, name: String): PetNameError? {
+    /** Cría un polluelo llamado [name] en el bioma actual; devuelve por qué se rechazó el nombre. */
+    fun hatch(name: String): PetNameError? {
         val roster = _roster.value ?: return null
-        if (!RosterRules.canAdopt(roster, species)) return null
+        if (!RosterRules.canHatch(roster)) return null
         RosterRules.validateName(roster, name)?.let { return it }
         val now = clock.nowMillis()
-        set(RosterRules.adopt(advanceActive(roster, now), species, name, now), saveNow = true)
+        set(RosterRules.hatch(advanceActive(roster, now), name, now), saveNow = true)
         return null
+    }
+
+    /** Libera para siempre a la mascota [petId]. */
+    fun release(petId: String) {
+        val roster = _roster.value ?: return
+        val now = clock.nowMillis()
+        set(RosterRules.release(advanceActive(roster, now), petId, now), saveNow = true)
+    }
+
+    /** Viaja a [biome] (vacío si nunca has criado allí). */
+    fun enterBiome(biome: Biome) {
+        val roster = _roster.value ?: return
+        val now = clock.nowMillis()
+        set(RosterRules.enterBiome(advanceActive(roster, now), biome, now), saveNow = true)
     }
 
     /** Vuelve a una mascota ya criada; la actual empieza a descansar. */

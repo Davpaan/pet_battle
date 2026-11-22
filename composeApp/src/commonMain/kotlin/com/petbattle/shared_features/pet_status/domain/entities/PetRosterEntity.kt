@@ -1,25 +1,28 @@
 package com.petbattle.shared_features.pet_status.domain.entities
 
-import com.petbattle.shared_features.pet_species.domain.PetSpecies
+import com.petbattle.shared_features.biomes.domain.Biome
 import kotlinx.serialization.Serializable
 
 /**
- * Todas las mascotas que ha criado el jugador (una por especie) más la que se está
- * cuidando actualmente en la pantalla principal.
+ * Todas las mascotas que ha criado el jugador, repartidas por biomas, el bioma que está
+ * visitando y la mascota que se está cuidando en la pantalla principal (siempre de ese bioma).
  */
 @Serializable
 data class PetRosterEntity(
     val pets: List<PetEntity> = emptyList(),
-    /** `null` solo antes de la primera adopción. */
+    /** `null` si el bioma actual está vacío. */
     val activeId: String? = null,
+    /** `null` solo antes de elegir el primer bioma. */
+    val currentBiome: Biome? = null,
 ) {
     val active: PetEntity? get() = pets.firstOrNull { it.id == activeId }
 
     fun byId(id: String) = pets.firstOrNull { it.id == id }
 
-    fun bySpecies(species: PetSpecies) = pets.firstOrNull { it.species == species }
+    fun petsIn(biome: Biome) = pets.filter { it.biome == biome }
 
-    fun hasRaised(species: PetSpecies) = bySpecies(species) != null
+    /** Mascotas del bioma que se está visitando. */
+    val biomePets: List<PetEntity> get() = currentBiome?.let(::petsIn).orEmpty()
 
     /** Mismo plantel con la mascota que tiene el id de [pet] sustituida por [pet]. */
     fun replace(pet: PetEntity) = copy(pets = pets.map { if (it.id == pet.id) pet else it })

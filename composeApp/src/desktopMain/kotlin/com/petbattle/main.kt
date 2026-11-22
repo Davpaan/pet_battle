@@ -27,7 +27,7 @@ fun main() {
                 exitApplication()
             },
             title = "Pet Battle",
-            state = rememberWindowState(width = 1100.dp, height = 760.dp),
+            state = rememberWindowState(width = 1280.dp, height = 720.dp),
         ) {
             App(controller)
         }

@@ -1,8 +1,6 @@
 package com.petbattle.features.pet.presentation.widgets
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.text.KeyboardActions
@@ -23,23 +21,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
-import com.petbattle.shared_features.pet_skills.domain.element
-import com.petbattle.shared_features.pet_skills.domain.type
-import com.petbattle.shared_features.pet_skills.presentation.ElementChip
-import com.petbattle.shared_features.pet_skills.presentation.TypeChip
+import com.petbattle.shared_features.biomes.domain.Biome
+import com.petbattle.shared_features.biomes.presentation.label
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
-import com.petbattle.shared_features.pet_species.presentation.label
 import com.petbattle.shared_features.pet_species.presentation.widgets.BirdFrame
 import com.petbattle.shared_features.pet_status.domain.PetNameError
 import com.petbattle.shared_features.pet_status.domain.RosterRules
 
 /**
- * Pide el nombre de una mascota nueva. Una mascota no se puede guardar sin él, así que el
- * diálogo solo se cierra con un nombre válido (o al cancelar). [submit] intenta
- * adoptar y devuelve el motivo del fallo, o `null` si tiene éxito.
+ * Pide el nombre de un polluelo nuevo en [biome]. Una mascota no se puede guardar sin él, así
+ * que el diálogo solo se cierra con un nombre válido (o al cancelar). [submit] intenta
+ * criarlo y devuelve el motivo del fallo, o `null` si tiene éxito.
  */
 @Composable
-fun PetNameDialog(species: PetSpecies, submit: (String) -> PetNameError?, onDismiss: () -> Unit) {
+fun PetNameDialog(biome: Biome, submit: (String) -> PetNameError?, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<PetNameError?>(null) }
     fun trySubmit() {
@@ -48,15 +43,10 @@ fun PetNameDialog(species: PetSpecies, submit: (String) -> PetNameError?, onDism
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Nuevo ${species.label.lowercase()}") },
+        title = { Text("Nuevo polluelo en ${biome.label.lowercase()}") },
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                BirdFrame(species, 96.dp)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ElementChip(species.element)
-                    TypeChip(species.type)
-                }
+                BirdFrame(PetSpecies.chick, 96.dp)
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
                     value = name,
@@ -71,7 +61,7 @@ fun PetNameDialog(species: PetSpecies, submit: (String) -> PetNameError?, onDism
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { trySubmit() }),
                 )
-                Text("Empezará en el nivel 0.", style = MaterialTheme.typography.bodySmall)
+                Text("Lo que le des de comer decidirá en qué pájaro se convierte.", style = MaterialTheme.typography.bodySmall)
             }
         },
         confirmButton = { Button(onClick = ::trySubmit) { Text("Guardar") } },

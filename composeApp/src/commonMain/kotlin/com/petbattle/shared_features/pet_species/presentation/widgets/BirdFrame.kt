@@ -10,9 +10,13 @@ import com.petbattle.core.ui.drawSpriteFrame
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import com.petbattle.shared_features.pet_species.presentation.BirdSheet
 import com.petbattle.shared_features.pet_species.presentation.sheet
+import com.petbattle.shared_features.pet_species.presentation.spriteScale
 import org.jetbrains.compose.resources.imageResource
 
-/** Un frame nítido y ampliado de un spritesheet de pájaro (pose de reposo por defecto). */
+/**
+ * Un frame nítido y ampliado de un spritesheet de pájaro (pose de reposo por defecto). Las
+ * especies pequeñas (el polluelo) se dibujan más pequeñas, apoyadas abajo y centradas.
+ */
 @Composable
 fun BirdFrame(
     species: PetSpecies,
@@ -23,6 +27,8 @@ fun BirdFrame(
 ) {
     val image = imageResource(species.sheet)
     Canvas(modifier.size(size)) {
-        drawSpriteFrame(image, BirdSheet.FRAME_SIZE, column, row, Offset.Zero, this.size.width)
+        val side = this.size.width * species.spriteScale
+        val origin = Offset((this.size.width - side) / 2, this.size.height - side)
+        drawSpriteFrame(image, BirdSheet.FRAME_SIZE, column, row, origin, side)
     }
 }

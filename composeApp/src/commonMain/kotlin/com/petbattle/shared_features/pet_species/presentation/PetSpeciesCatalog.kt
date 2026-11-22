@@ -11,6 +11,7 @@ import com.petbattle.resources.pet_hummingbird
 import com.petbattle.resources.pet_magpie
 import com.petbattle.resources.pet_red_robin
 import com.petbattle.resources.pet_stellers_jay
+import com.petbattle.resources.pet_vanilla_chick
 import com.petbattle.resources.pet_white_dove
 import com.petbattle.resources.pet_wood_thrush
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
@@ -32,6 +33,7 @@ object BirdSheet {
 /** Datos de presentación de cada especie: nombre visible y spritesheet. */
 val PetSpecies.label: String
     get() = when (this) {
+        PetSpecies.chick -> "Polluelo"
         PetSpecies.cardinal -> "Cardenal"
         PetSpecies.blueJay -> "Arrendajo"
         PetSpecies.cedarWaxwing -> "Ampelis"
@@ -48,6 +50,7 @@ val PetSpecies.label: String
 
 val PetSpecies.sheet: DrawableResource
     get() = when (this) {
+        PetSpecies.chick -> Res.drawable.pet_vanilla_chick
         PetSpecies.cardinal -> Res.drawable.pet_cardinal
         PetSpecies.blueJay -> Res.drawable.pet_blue_jay
         PetSpecies.cedarWaxwing -> Res.drawable.pet_cedar_waxwing
@@ -61,3 +64,6 @@ val PetSpecies.sheet: DrawableResource
         PetSpecies.whiteDove -> Res.drawable.pet_white_dove
         PetSpecies.woodThrush -> Res.drawable.pet_wood_thrush
     }
+
+/** Tamaño relativo al dibujarla: el polluelo es más pequeño que los adultos. */
+val PetSpecies.spriteScale: Float get() = if (this == PetSpecies.chick) 0.6f else 1f

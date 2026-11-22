@@ -39,7 +39,7 @@ class DefenseVisualTest {
         map = img("map_jungle_camp"),
         slime = img("enemy_slime"),
         skills = PetElement.entries.associateWith { img("skill_${it.name}") },
-        pets = PetSpecies.entries.associateWith { sp ->
+        pets = PetSpecies.adults.associateWith { sp ->
             img("pet_" + sp.name.replace(Regex("([A-Z])")) { "_" + it.value.lowercase() })
         },
     )

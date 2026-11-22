@@ -1,5 +1,6 @@
 package com.petbattle.shared_features.pet_status.domain
 
+import com.petbattle.shared_features.pet_food.domain.Food
 import com.petbattle.shared_features.pet_status.domain.entities.PetStatusEntity
 import kotlin.math.min
 
@@ -62,6 +63,13 @@ object PetStatusRules {
         satiety = clamp(pet.satiety + PetStatusBalance.FEED_SATIETY),
         hygiene = clamp(pet.hygiene - PetStatusBalance.FEED_HYGIENE_COST),
     )
+
+    /**
+     * Ofrecer [food] a una mascota cuya dieta es [diet]: si le gusta se la come ([feed]); si
+     * no, la rechaza y su estado no cambia.
+     */
+    fun offerFood(pet: PetStatusEntity, food: Food, diet: List<Food>): Pair<PetStatusEntity, FeedResult> =
+        if (food in diet) feed(pet) to FeedResult.eaten else pet to FeedResult.rejected
 
     fun toggleSleep(pet: PetStatusEntity) = pet.copy(isSleeping = !pet.isSleeping)
 
