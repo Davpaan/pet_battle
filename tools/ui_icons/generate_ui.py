@@ -376,6 +376,108 @@ def combat_speed(c):
     detail(c, stroke([(44, 66), (76, 28)], 2.2), BLUE)
 
 
+# Elementos y tipos.
+def element_fire(c):
+    outer = union(ellipse(50, 66, 28, 26), poly((24, 60), (34, 30), (44, 44), (52, 8), (66, 40), (72, 28), (78, 62)))
+    paint(c, outer, ORANGE)
+    inner = union(ellipse(50, 72, 15, 15), poly((36, 70), (46, 48), (52, 58), (60, 42), (66, 70)))
+    paint(c, inner, GOLD, line=2.0, highlight=False)
+
+
+def element_air(c):
+    # Viento: líneas con un remolino al final.
+    for y, x1 in ((30, 66), (52, 78), (74, 58)):
+        gust = union(stroke([(12, y), (x1, y)], 7), arc_stroke(x1, y - 9, 9, 90, -190, 7))
+        paint(c, gust, (196, 228, 246), line=2.2, highlight=False)
+
+
+def element_water(c):
+    # Olas: dos líneas onduladas.
+    for y, col in ((40, SKY), (66, BLUE)):
+        pts = [(10 + i * 2, y + 7 * math.sin(i * 2 * math.pi / 20)) for i in range(41)]
+        paint(c, stroke(pts, 9), col, line=2.4, highlight=False)
+
+
+def element_earth(c):
+    rock = poly((14, 78), (24, 44), (46, 24), (72, 30), (88, 58), (80, 82), (40, 88))
+    paint(c, rock, (164, 128, 92))
+    detail(c, stroke([(44, 40), (54, 58), (48, 74)], 2.4), (110, 82, 58))
+    paint(c, ellipse(30, 82, 10, 6), GREEN, line=2.0, highlight=False)
+
+
+def type_light(c):
+    paint(c, star(50, 50, 42, 20, n=8, rot=-90), (255, 232, 120))
+    paint(c, ellipse(50, 50, 16, 16), WHITE, line=2.2)
+
+
+def type_darkness(c):
+    moon = minus(ellipse(50, 52, 36, 36), ellipse(66, 40, 30, 30))
+    paint(c, moon, (120, 80, 190))
+    for x, y in ((70, 64), (80, 46), (62, 80)):
+        detail(c, star(x, y, 5, 2), (230, 220, 255))
+
+
+def type_elemental(c):
+    for (dx, dy), col in zip(((0, -18), (18, 0), (0, 18), (-18, 0)), (ORANGE, SKY, BLUE, (164, 128, 92))):
+        paint(c, ellipse(50 + dx, 50 + dy, 15, 15), col, line=2.4)
+    paint(c, star(50, 50, 14, 6, n=4, rot=-90), WHITE, line=2.0)
+
+
+# Comidas.
+def food_seeds(c):
+    for x, y, r in ((36, 62, 0), (58, 58, 30), (46, 40, -20), (68, 76, 10), (30, 82, -30), (52, 80, 40)):
+        seed = ellipse(x, y, 8, 12)
+        paint(c, seed.rotate(r, center=(x * U, y * U)), (226, 184, 96), line=2.2)
+
+
+def food_nuts(c):
+    paint(c, ellipse(50, 62, 24, 28), (196, 132, 64))  # bellota
+    cap = minus(ellipse(50, 42, 30, 18), rrect(0, 46, 100, 100, 0))
+    paint(c, union(cap, rrect(20, 38, 80, 48, 6)), (128, 84, 44))
+    paint(c, stroke([(50, 24), (56, 12)], 5), (110, 70, 36), line=2.0, highlight=False)
+
+
+def food_fruit(c):
+    paint(c, stroke([(36, 56), (56, 18), (70, 60)], 3.5), GREEN_DARK, line=1.8, highlight=False)
+    paint(c, ellipse(62, 18, 12, 6), LEAF, line=2.0)
+    paint(c, ellipse(34, 66, 18, 18), RED)
+    paint(c, ellipse(68, 70, 18, 18), RED)
+
+
+def food_insects(c):
+    for y in (46, 58, 70):
+        detail(c, stroke([(20, y), (80, y + 4)], 3), OUTLINE)
+    paint(c, ellipse(50, 60, 22, 28), (76, 150, 96))
+    detail(c, stroke([(50, 34), (50, 88)], 2.6), OUTLINE)
+    paint(c, ellipse(50, 30, 12, 10), (60, 70, 80))
+    for x in (42, 58):
+        detail(c, stroke([(x, 22), (x + (x - 50), 10)], 2.4), OUTLINE)
+
+
+def food_worms(c):
+    pts = [(14 + i * 2.4, 56 + 14 * math.sin(i * 2 * math.pi / 15)) for i in range(31)]
+    paint(c, stroke(pts, 14), PINK)
+    detail(c, ellipse(84, 52, 2.4, 2.4), OUTLINE)
+    for i in (8, 14, 20):
+        x, y = pts[i]
+        detail(c, stroke([(x - 1, y - 6), (x + 1, y + 6)], 1.8), (200, 90, 120))
+
+
+def food_nectar(c):
+    for i in range(5):
+        a = math.radians(i * 72 - 90)
+        paint(c, ellipse(50 + 20 * math.cos(a), 46 + 20 * math.sin(a), 14, 14), (250, 150, 200), line=2.4)
+    paint(c, ellipse(50, 46, 11, 11), GOLD, line=2.2)
+    paint(c, stroke([(50, 66), (50, 94)], 5), GREEN_DARK, line=2.0, highlight=False)
+
+
+def food_carrion(c):
+    bone = union(stroke([(22, 78), (66, 34)], 9), ellipse(16, 76, 7, 7), ellipse(24, 86, 7, 7))
+    paint(c, bone, CREAM, line=2.4)
+    paint(c, ellipse(66, 38, 26, 22), (196, 84, 72))
+    detail(c, ellipse(62, 34, 9, 6), (236, 150, 140))
+
+
 ICONS = {
     "coin": coin, "egg": egg, "biome": biome, "menu": menu, "level": level,
     "feed": feed, "sleep": sleep, "wake": wake, "clean": clean, "defend": defend,
@@ -384,6 +486,12 @@ ICONS = {
     "stat_hygiene": stat_hygiene, "stat_social": stat_social, "stat_climate": stat_climate,
     "stat_plumage": stat_plumage, "stat_digestion": stat_digestion, "stat_beak": stat_beak,
     "stat_confidence": stat_trust, "info": info, "combat_damage": combat_damage, "combat_speed": combat_speed,
+    "element_fire": element_fire, "element_air": element_air, "element_water": element_water,
+    "element_earth": element_earth, "type_light": type_light, "type_darkness": type_darkness,
+    "type_elemental": type_elemental,
+    "food_seeds": food_seeds, "food_nuts": food_nuts, "food_fruit": food_fruit,
+    "food_insects": food_insects, "food_worms": food_worms, "food_nectar": food_nectar,
+    "food_carrion": food_carrion,
 }
 
 

@@ -59,6 +59,20 @@ import com.petbattle.resources.ui_stat_plumage
 import com.petbattle.resources.ui_stat_social
 import com.petbattle.resources.ui_stat_confidence
 import com.petbattle.resources.ui_info
+import com.petbattle.resources.ui_food_carrion
+import com.petbattle.resources.ui_food_fruit
+import com.petbattle.resources.ui_food_insects
+import com.petbattle.resources.ui_food_nectar
+import com.petbattle.resources.ui_food_nuts
+import com.petbattle.resources.ui_food_seeds
+import com.petbattle.resources.ui_food_worms
+import com.petbattle.resources.ui_element_air
+import com.petbattle.resources.ui_element_earth
+import com.petbattle.resources.ui_element_fire
+import com.petbattle.resources.ui_element_water
+import com.petbattle.resources.ui_type_darkness
+import com.petbattle.resources.ui_type_elemental
+import com.petbattle.resources.ui_type_light
 import com.petbattle.resources.ui_combat_damage
 import com.petbattle.resources.ui_combat_speed
 import com.petbattle.resources.ui_wake
@@ -101,6 +115,13 @@ enum class GameIcon(val res: DrawableResource) {
     Plumage(Res.drawable.ui_stat_plumage), Digestion(Res.drawable.ui_stat_digestion), Beak(Res.drawable.ui_stat_beak),
     Confidence(Res.drawable.ui_stat_confidence), Info(Res.drawable.ui_info),
     Damage(Res.drawable.ui_combat_damage), Speed(Res.drawable.ui_combat_speed),
+    Fire(Res.drawable.ui_element_fire), Air(Res.drawable.ui_element_air),
+    Water(Res.drawable.ui_element_water), Earth(Res.drawable.ui_element_earth),
+    Light(Res.drawable.ui_type_light), Darkness(Res.drawable.ui_type_darkness),
+    Elemental(Res.drawable.ui_type_elemental),
+    Seeds(Res.drawable.ui_food_seeds), Nuts(Res.drawable.ui_food_nuts), Fruit(Res.drawable.ui_food_fruit),
+    Insects(Res.drawable.ui_food_insects), Worms(Res.drawable.ui_food_worms), Nectar(Res.drawable.ui_food_nectar),
+    Carrion(Res.drawable.ui_food_carrion),
 }
 
 @Composable
