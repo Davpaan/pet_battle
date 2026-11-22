@@ -92,7 +92,7 @@ class DefenseVisualTest {
             PetSpecies.hummingbird to "Aire", PetSpecies.crow to "Tierra",
         ).map { (s, n) ->
             val p = PetEntity.newborn(n, s, 0)
-            p.copy(skills = p.skills.copy(level = 1))
+            p.copy(progression = p.progression.copy(level = 1))
         }
         game.updatePets(pets)
         val spots = listOf(Offset(1262f, 539f), Offset(1000f, 540f), Offset(700f, 560f), Offset(440f, 540f))

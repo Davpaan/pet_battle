@@ -25,7 +25,7 @@ import com.petbattle.core.ui.drawSpriteFrame
 import com.petbattle.shared_features.pet_skills.domain.PetElement
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import com.petbattle.shared_features.pet_species.presentation.BirdSheet
-import com.petbattle.shared_features.pet_status.domain.PetCombatEffects
+import com.petbattle.shared_features.pet_status.domain.PetNeedsBalance
 import com.petbattle.features.defense.domain.DefenseBalance
 import kotlin.math.floor
 import kotlin.math.sin
@@ -169,9 +169,9 @@ private fun DrawScope.drawDefender(d: Defender, game: DefenseGame, sprites: Defe
     }
     // Nombre · nivel (o agotada) y barra de energía.
     val top = feet.y - size
-    val label = if (d.exhausted) "${d.pet.name} · ¡Agotado!" else "${d.pet.name} · Nv.${d.pet.skills.level}"
+    val label = if (d.exhausted) "${d.pet.name} · ¡Agotado!" else "${d.pet.name} · Nv.${d.pet.progression.level}"
     text.draw(this, label, Offset(feet.x, top + size * 0.16f))
-    val energy = PetCombatEffects.attackSpeed(d.pet.status).toFloat()
+    val energy = (d.pet.needs.energy / PetNeedsBalance.MAX_STAT).coerceIn(0.0, 1.0).toFloat()
     val w = 56f
     val bar = Offset(feet.x - w / 2, top + size * 0.16f + 2)
     drawRect(Color(0xAA000000), bar, Size(w, 6f))

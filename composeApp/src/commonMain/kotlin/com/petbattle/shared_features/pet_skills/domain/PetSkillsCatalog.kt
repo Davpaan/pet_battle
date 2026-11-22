@@ -3,7 +3,7 @@ package com.petbattle.shared_features.pet_skills.domain
 import com.petbattle.shared_features.pet_skills.domain.entities.BurnEffect
 import com.petbattle.shared_features.pet_skills.domain.entities.KnockbackEffect
 import com.petbattle.shared_features.pet_skills.domain.entities.PetSkillEntity
-import com.petbattle.shared_features.pet_skills.domain.entities.PetSkillsEntity
+import com.petbattle.shared_features.pet_skills.domain.entities.PetProgressionEntity
 import com.petbattle.shared_features.pet_skills.domain.entities.SlowEffect
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
 
@@ -66,7 +66,7 @@ object PetSkillsCatalog {
     /** Todo lo que una mascota podría llegar a aprender, desbloqueado o no. */
     fun allFor(
         species: PetSpecies,
-        skills: PetSkillsEntity,
+        skills: PetProgressionEntity,
         elementTable: Map<PetElement, List<PetSkillEntity>> = byElement,
         typeTable: Map<PetType, List<PetSkillEntity>> = byType,
         speciesTypeTable: Map<Pair<PetSpecies, PetType>, List<PetSkillEntity>> = bySpeciesType,
@@ -79,7 +79,7 @@ object PetSkillsCatalog {
     /** Habilidades ya disponibles en el nivel actual de la mascota. */
     fun unlockedFor(
         species: PetSpecies,
-        skills: PetSkillsEntity,
+        skills: PetProgressionEntity,
         elementTable: Map<PetElement, List<PetSkillEntity>> = byElement,
         typeTable: Map<PetType, List<PetSkillEntity>> = byType,
         speciesTypeTable: Map<Pair<PetSpecies, PetType>, List<PetSkillEntity>> = bySpeciesType,
@@ -87,6 +87,6 @@ object PetSkillsCatalog {
         .filter { skills.level >= it.unlockLevel }
 
     /** La habilidad con la que ataca una mascota: la de su elemento. */
-    fun basicAttackFor(skills: PetSkillsEntity): PetSkillEntity =
+    fun basicAttackFor(skills: PetProgressionEntity): PetSkillEntity =
         byElement.getValue(skills.element).first()
 }

@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.petbattle.core.time.DayPhase
 import com.petbattle.core.ui.GameIcon
 import com.petbattle.core.ui.GameIconImage
 import com.petbattle.core.ui.GameUi
@@ -46,12 +47,13 @@ import com.petbattle.features.pet.presentation.widgets.MenuTab
 import com.petbattle.features.pet.presentation.widgets.PetNameDialog
 import com.petbattle.features.pet.presentation.widgets.StatsPanel
 import com.petbattle.shared_features.biomes.presentation.label
+import com.petbattle.shared_features.pet_combat.domain.PetCombatStatsRules
 import com.petbattle.shared_features.pet_food.presentation.label
 import com.petbattle.shared_features.pet_species.presentation.label
 import com.petbattle.shared_features.pet_status.application.PetController
 import com.petbattle.shared_features.pet_status.domain.FeedResult
 import com.petbattle.shared_features.pet_status.domain.GameRules
-import com.petbattle.shared_features.pet_status.domain.PetHiddenStats
+import com.petbattle.shared_features.pet_status.domain.PetDerivedNeeds
 import com.petbattle.shared_features.pet_status.domain.entities.PetEntity
 import kotlinx.coroutines.delay
 
@@ -74,6 +76,7 @@ private val MenuButtonSize = 68.dp
 @Composable
 fun PetScreen(controller: PetController, onDefend: () -> Unit) {
     val gameState by controller.gameState.collectAsState()
+    val dayPhase by controller.dayPhase.collectAsState()
     var menuOpen by remember { mutableStateOf(false) }
     var menuTab by remember { mutableStateOf(MenuTab.eggs) }
     var naming by remember { mutableStateOf(false) }
@@ -126,6 +129,7 @@ fun PetScreen(controller: PetController, onDefend: () -> Unit) {
                 controller.cuddle()
             },
             modifier = Modifier.fillMaxSize(),
+            dayPhase = dayPhase,
             walkStartInset = if (pet != null) ActionBarWidth else 0.dp,
             walkEndInset = MenuButtonSize,
         )
@@ -134,9 +138,11 @@ fun PetScreen(controller: PetController, onDefend: () -> Unit) {
             CoinCounter(current.gold, onShop = { openMenu(MenuTab.eggs) }, Modifier.align(Alignment.TopStart))
             if (pet != null) {
                 LevelBadge(pet, Modifier.align(Alignment.TopCenter))
+                val social = PetDerivedNeeds.socialization(pet, current)
                 StatsPanel(
                     pet = pet,
-                    socialization = PetHiddenStats.socialization(pet, current),
+                    socialization = social,
+                    combat = PetCombatStatsRules.statsFor(pet, social),
                     onRelease = { confirmRelease = pet },
                     // Acaba por encima del botón del menú; si no cabe, hace scroll.
                     modifier = Modifier.align(Alignment.TopEnd).heightIn(max = screenHeight - MenuButtonSize - 40.dp),

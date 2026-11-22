@@ -9,7 +9,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.petbattle.core.ui.GameIcon
 import com.petbattle.core.ui.WoodIconButton
-import com.petbattle.shared_features.pet_status.domain.PetStatusRules
+import com.petbattle.shared_features.pet_status.domain.PetNeedsRules
 import com.petbattle.shared_features.pet_status.domain.entities.PetEntity
 
 /** Ancho que ocupa la columna de acciones (la escena deja ese hueco libre a la izquierda). */
@@ -25,12 +25,12 @@ fun ActionBar(
     onDefend: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val sleeping = pet.status.isSleeping
+    val sleeping = pet.needs.isSleeping
     Column(modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         // Las reglas deciden la disponibilidad; la UI solo las refleja.
-        WoodIconButton(GameIcon.Feed, "Alimentar", if (PetStatusRules.canFeed(pet.status)) onFeed else null)
+        WoodIconButton(GameIcon.Feed, "Alimentar", if (PetNeedsRules.canFeed(pet.needs)) onFeed else null)
         WoodIconButton(if (sleeping) GameIcon.Wake else GameIcon.Sleep, if (sleeping) "Despertar" else "Dormir", onToggleSleep)
-        WoodIconButton(GameIcon.Clean, "Limpiar", if (PetStatusRules.canClean(pet.status)) onClean else null)
+        WoodIconButton(GameIcon.Clean, "Limpiar", if (PetNeedsRules.canClean(pet.needs)) onClean else null)
         WoodIconButton(GameIcon.Defend, "Defender", onDefend)
     }
 }

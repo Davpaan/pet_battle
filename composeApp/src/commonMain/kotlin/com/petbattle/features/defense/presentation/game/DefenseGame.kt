@@ -9,6 +9,8 @@ import com.petbattle.features.defense.domain.RoutePath
 import com.petbattle.features.defense.domain.entities.DefenseMapEntity
 import com.petbattle.features.defense.domain.entities.EnemyEntity
 import com.petbattle.features.defense.domain.entities.MapPoint
+import com.petbattle.shared_features.pet_combat.domain.PetCombatStats
+import com.petbattle.shared_features.pet_combat.domain.PetCombatStatsRules
 import com.petbattle.shared_features.pet_skills.domain.PetElement
 import com.petbattle.shared_features.pet_skills.domain.PetSkillsCatalog
 import com.petbattle.shared_features.pet_skills.domain.entities.PetSkillEntity
@@ -72,8 +74,18 @@ class DefenseGame(
     var editingId: String? = null
         private set
 
-    /** Últimas instantáneas del controlador (nivel y energía cambian al combatir). */
-    fun updatePets(value: List<PetEntity>) {
+    /** Socialización de cada mascota (depende de su bioma; la necesita la confianza). */
+    private var socialization: Map<String, Double> = emptyMap()
+
+    /** Stats de combate de [pet] ahora mismo. */
+    fun statsOf(pet: PetEntity) = PetCombatStatsRules.statsFor(pet, socialization[pet.id] ?: 0.0)
+
+    /**
+     * Últimas instantáneas del controlador (nivel y necesidades cambian al combatir) y la
+     * socialización de cada una.
+     */
+    fun updatePets(value: List<PetEntity>, socialization: Map<String, Double> = emptyMap()) {
+        this.socialization = socialization
         pets = value.associateBy { it.id }
         petOrder = value.map { it.id }
         defenders.values.forEach { d -> pets[d.pet.id]?.let { d.updatePet(it, this) } }
@@ -296,12 +308,16 @@ class Defender(pet: PetEntity, val foot: Offset) {
     /** De dónde salen los disparos (el pecho del pájaro). */
     val muzzle get() = position - Offset(0f, SIZE * 0.45f)
 
-    val exhausted get() = DefenseRules.fireInterval(pet) == null
+    /** Stats de combate con los que se dibuja su etiqueta (último cálculo). */
+    var stats: PetCombatStats? = null
+        private set
+
+    val exhausted get() = stats?.exhausted == true
 
     fun updatePet(value: PetEntity, game: DefenseGame) {
-        if (value.skills.level > pet.skills.level) {
+        if (value.progression.level > pet.progression.level) {
             game.texts += FloatingText(
-                "¡Nivel ${value.skills.level}!", position - Offset(0f, SIZE), life = 1.6, rise = 30.0,
+                "¡Nivel ${value.progression.level}!", position - Offset(0f, SIZE), life = 1.6, rise = 30.0,
                 color = 0xFFFFD54F, sizePx = 26f,
             )
         }
@@ -314,7 +330,8 @@ class Defender(pet: PetEntity, val foot: Offset) {
         if (!game.running) return
         cooldown -= dt
         if (cooldown > 0) return
-        val interval = DefenseRules.fireInterval(pet) ?: return // agotada: necesita dormir
+        val current = game.statsOf(pet).also { stats = it }
+        val interval = current.fireInterval ?: return // agotada: necesita dormir
         val target = pickTarget(game) ?: return
         cooldown = interval
         facingRight = target.position.x > position.x
@@ -324,12 +341,12 @@ class Defender(pet: PetEntity, val foot: Offset) {
             Projectile(
                 position = muzzle,
                 target = target,
-                element = pet.skills.element,
-                skill = PetSkillsCatalog.basicAttackFor(pet.skills),
+                element = pet.progression.element,
+                skill = PetSkillsCatalog.basicAttackFor(pet.progression),
                 ownerId = pet.id,
                 speed = DefenseBalance.PROJECTILE_SPEED,
-                damage = DefenseRules.shotDamage(pet),
-                hits = DefenseRules.rollHit(pet, game.nextRandom()),
+                damage = current.damage,
+                hits = DefenseRules.rollHit(current, game.nextRandom()),
             ),
         )
     }

@@ -74,6 +74,7 @@ import com.petbattle.resources.skill_water
 import com.petbattle.shared_features.pet_skills.domain.PetElement
 import com.petbattle.shared_features.pet_skills.domain.PetProgression
 import com.petbattle.shared_features.pet_status.domain.GameRules
+import com.petbattle.shared_features.pet_status.domain.PetDerivedNeeds
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import com.petbattle.shared_features.pet_species.domain.isChick
 import com.petbattle.shared_features.pet_species.presentation.sheet
@@ -106,7 +107,11 @@ fun DefenseScreen(controller: PetController, onExit: () -> Unit, map: DefenseMap
             onPetFired = { controller.petFired(it) },
         )
     }
-    LaunchedEffect(pets) { game.updatePets(pets) }
+    LaunchedEffect(pets) {
+        val state = gameState
+        val social = if (state == null) emptyMap() else pets.associate { it.id to PetDerivedNeeds.socialization(it, state) }
+        game.updatePets(pets, social)
+    }
 
     val sprites = rememberDefenseSprites()
     val text = TextPainter(rememberTextMeasurer())
@@ -281,7 +286,7 @@ private fun PetBar(hud: DefenseHudState, pets: List<PetEntity>, onSelect: (Strin
                             Column {
                                 Text(pet.name, style = MaterialTheme.typography.labelMedium)
                                 Text(
-                                    "${if (placed) "En el mapa" else "Nv. ${pet.skills.level}"} · ⚡${pet.status.energy.roundToInt()}%",
+                                    "${if (placed) "En el mapa" else "Nv. ${pet.progression.level}"} · ⚡${pet.needs.energy.roundToInt()}%",
                                     style = MaterialTheme.typography.labelSmall,
                                 )
                             }

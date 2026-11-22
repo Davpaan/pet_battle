@@ -3,10 +3,9 @@ package com.petbattle.shared_features.pet_status.domain
 import com.petbattle.shared_features.biomes.domain.Biome
 import com.petbattle.shared_features.pet_food.domain.Food
 import com.petbattle.shared_features.pet_skills.domain.PetProgression
-import com.petbattle.shared_features.pet_species.domain.isChick
 import com.petbattle.shared_features.pet_status.domain.entities.PetEntity
 import com.petbattle.shared_features.pet_status.domain.entities.GameStateEntity
-import com.petbattle.shared_features.pet_status.domain.entities.PetStatusEntity
+import com.petbattle.shared_features.pet_status.domain.entities.PetNeedsEntity
 import kotlin.random.Random
 
 /** Motivo por el que no se puede usar un nombre. La UI asigna un mensaje a cada caso. */
@@ -19,8 +18,8 @@ enum class PetNameError { empty, tooLong, taken }
  * - Economía: cada enemigo derrotado da [GOLD_PER_ENEMY] de oro. Un huevo cuesta [EGG_PRICE]
  *   (el primero es gratis) y desbloquear un bioma [BIOME_PRICE] (la pradera viene gratis).
  * - Solo se puede ir a biomas comprados; cada uno muestra las mascotas que viven allí.
- * - Solo la mascota activa vive en tiempo real. Las demás descansan: sus estadísticas
- *   se congelan mientras están inactivas y se reanudan al volver a elegirlas.
+ * - El tiempo es absoluto y común: todas las mascotas viven en tiempo real (sus necesidades
+ *   avanzan igual estén seleccionadas o no, y en cualquier bioma).
  */
 object GameRules {
     const val MAX_NAME_LENGTH = 16
@@ -77,31 +76,30 @@ object GameRules {
     }
 
     /** Viaja a [biome] (si está comprado): se activa su primera mascota, o ninguna si está vacío. */
-    fun enterBiome(gameState: GameStateEntity, biome: Biome, now: Long): GameStateEntity {
+    fun enterBiome(gameState: GameStateEntity, biome: Biome): GameStateEntity {
         if (biome == gameState.currentBiome || !gameState.isUnlocked(biome)) return gameState
         val first = gameState.petsIn(biome).firstOrNull()
         val moved = gameState.copy(currentBiome = biome, activeId = null)
-        return if (first == null) moved else switchTo(moved, first.id, now)
+        return if (first == null) moved else switchTo(moved, first.id)
     }
 
     /**
      * Libera a la mascota [petId]: desaparece para siempre (su nombre vuelve a quedar libre).
      * Si era la activa, pasa a serlo otra del mismo bioma, o ninguna.
      */
-    fun release(gameState: GameStateEntity, petId: String, now: Long): GameStateEntity {
+    fun release(gameState: GameStateEntity, petId: String): GameStateEntity {
         val pet = gameState.byId(petId) ?: return gameState
         val rest = gameState.copy(pets = gameState.pets - pet)
         if (petId != gameState.activeId) return rest
         val next = rest.petsIn(pet.biome).firstOrNull() ?: return rest.copy(activeId = null)
-        return switchTo(rest.copy(activeId = null), next.id, now)
+        return switchTo(rest.copy(activeId = null), next.id)
     }
 
-    /** Activa [petId] (y su bioma); su reloj se reancla para que el descanso no la haga decaer. */
-    fun switchTo(gameState: GameStateEntity, petId: String, now: Long): GameStateEntity {
+    /** Selecciona [petId] (y viaja a su bioma). Su tiempo ya corría: no se toca. */
+    fun switchTo(gameState: GameStateEntity, petId: String): GameStateEntity {
         val pet = gameState.byId(petId) ?: return gameState
         if (petId == gameState.activeId) return gameState
-        return gameState.replace(pet.copy(status = pet.status.copy(lastUpdatedAt = now)))
-            .copy(activeId = petId, currentBiome = pet.biome)
+        return gameState.copy(activeId = petId, currentBiome = pet.biome)
     }
 
     /**
@@ -110,11 +108,11 @@ object GameRules {
      */
     fun feedActive(gameState: GameStateEntity, food: Food, random: Random): Pair<GameStateEntity, FeedResult?> {
         val pet = gameState.active ?: return gameState to null
-        if (!PetStatusRules.canFeed(pet.status)) return gameState to null
-        val (status, result) = PetStatusRules.offerFood(pet.status, food, pet.diet)
+        if (!PetNeedsRules.canFeed(pet.needs)) return gameState to null
+        val (needs, result) = PetNeedsRules.offerFood(pet.needs, food, pet.diet)
         if (result == null) return gameState to null
         // Siempre se la come: el polluelo cuenta cualquier comida para crecer.
-        val fed = GrowthRules.recordMeal(pet.copy(status = status), food)
+        val fed = GrowthRules.recordMeal(pet.copy(needs = needs), food)
         if (GrowthRules.shouldGrow(fed)) return gameState.replace(GrowthRules.grow(fed, random)) to FeedResult.grew
         return gameState.replace(fed) to result
     }
@@ -141,34 +139,35 @@ object GameRules {
     }
 
     /** Aplica [change] al estado de la mascota activa. */
-    fun updateActiveStatus(
+    fun updateActiveNeeds(
         gameState: GameStateEntity,
-        change: (PetStatusEntity) -> PetStatusEntity,
-    ) = updateActive(gameState) { it.copy(status = change(it.status)) }
+        change: (PetNeedsEntity) -> PetNeedsEntity,
+    ) = updateActive(gameState) { it.copy(needs = change(it.needs)) }
 
     /**
-     * Pone al día a la mascota activa hasta [now] (los polluelos no oxidan el pico: aún no
-     * pueden luchar).
+     * Pone al día a **todas** las mascotas hasta [now]: el tiempo es absoluto y común, estén
+     * seleccionadas o no. [isNight] dice qué instantes son de noche (de noche descansan).
      */
-    fun advanceActive(gameState: GameStateEntity, now: Long) = updateActive(gameState) { pet ->
-        pet.copy(status = PetStatusRules.advanceTo(pet.status, now, beakDecays = !pet.species.isChick))
-    }
+    fun advanceAll(gameState: GameStateEntity, now: Long, isNight: (Long) -> Boolean = { false }) =
+        gameState.copy(pets = gameState.pets.map { pet ->
+            pet.copy(needs = PetNeedsRules.advanceTo(pet.needs, now, isNight = isNight))
+        })
 
     /** La mascota [petId] dispara en combate: se cansa y se le afilan el pico y las garras. */
     fun petFired(gameState: GameStateEntity, petId: String): GameStateEntity {
         val pet = gameState.byId(petId) ?: return gameState
-        return gameState.replace(pet.copy(status = PetStatusRules.fire(pet.status)))
+        return gameState.replace(pet.copy(needs = PetNeedsRules.fire(pet.needs)))
     }
 
     /** Da [amount] XP a la mascota [petId] (cualquiera, activa o en reposo). */
     fun awardXp(gameState: GameStateEntity, petId: String, amount: Int): GameStateEntity {
         val pet = gameState.byId(petId) ?: return gameState
-        return gameState.replace(pet.copy(skills = PetProgression.gainXp(pet.skills, amount)))
+        return gameState.replace(pet.copy(progression = PetProgression.gainXp(pet.progression, amount)))
     }
 
     /** La mascota [petId] se cansa por luchar (cualquiera, activa o en reposo). */
     fun spendEnergy(gameState: GameStateEntity, petId: String, amount: Double): GameStateEntity {
         val pet = gameState.byId(petId) ?: return gameState
-        return gameState.replace(pet.copy(status = PetStatusRules.spendEnergy(pet.status, amount)))
+        return gameState.replace(pet.copy(needs = PetNeedsRules.spendEnergy(pet.needs, amount)))
     }
 }

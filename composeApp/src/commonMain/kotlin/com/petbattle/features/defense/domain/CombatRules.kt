@@ -12,7 +12,7 @@ data class HitOutcome(val enemy: EnemyEntity, val knockback: Double = 0.0)
 
 /** Cómo el efecto de una habilidad convierte un golpe en cambios sobre el enemigo. */
 object CombatRules {
-    /** [damage] ya incluye nivel y estado (DefenseRules.shotDamage). */
+    /** [damage] es el daño actual de la mascota (PetCombatStats.damage: nivel y necesidades). */
     fun applyHit(enemy: EnemyEntity, damage: Double, effect: SkillEffectEntity, petId: String) =
         when (effect) {
             DirectDamageEffect -> HitOutcome(enemy.hit(damage, petId))

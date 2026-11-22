@@ -8,6 +8,8 @@ import com.petbattle.features.defense.domain.entities.EnemyEntity
 import com.petbattle.features.defense.domain.entities.MapPoint
 import com.petbattle.features.defense.domain.entities.MapRoute
 import com.petbattle.features.defense.domain.maps.jungleCampMap
+import com.petbattle.shared_features.pet_combat.domain.PetCombatStats
+import com.petbattle.shared_features.pet_combat.domain.PetCombatStatsRules
 import com.petbattle.shared_features.pet_skills.domain.PetSkillsCatalog
 import com.petbattle.shared_features.pet_skills.domain.entities.KnockbackEffect
 import com.petbattle.shared_features.pet_skills.domain.entities.SlowEffect
@@ -61,24 +63,15 @@ class DefenseDomainTest {
         repeat(3) { e = e.hit(1.2) }
         assertTrue(e.isDefeated)
         for (n in 1..10) {
-            assertTrue(EnemyEntity.spawn(n).hit(DefenseRules.petDamage(n)).isDefeated)
-            assertFalse(EnemyEntity.spawn(n + 1).hit(DefenseRules.petDamage(n)).isDefeated)
+            assertTrue(EnemyEntity.spawn(n).hit(PetCombatStatsRules.maxDamage(n)).isDefeated)
+            assertFalse(EnemyEntity.spawn(n + 1).hit(PetCombatStatsRules.maxDamage(n)).isDefeated)
         }
     }
 
-    @Test fun statusScalesCombat() {
-        val base = PetEntity.newborn("A", PetSpecies.crow, 0)
-        fun pet(level: Int = 1, energy: Double = 100.0, satiety: Double = 100.0, happiness: Double = 100.0) =
-            base.copy(
-                skills = base.skills.copy(level = level),
-                status = base.status.copy(energy = energy, satiety = satiety, happiness = happiness),
-            )
-        close(2.4, DefenseRules.shotDamage(pet(level = 2)))
-        close(1.2, DefenseRules.shotDamage(pet(level = 2, satiety = 50.0)))
-        close(DefenseBalance.PET_FIRE_INTERVAL * 4, DefenseRules.fireInterval(pet(energy = 25.0))!!)
-        assertNull(DefenseRules.fireInterval(pet(energy = 0.0)))
-        assertTrue(DefenseRules.rollHit(pet(happiness = 30.0), 0.29))
-        assertFalse(DefenseRules.rollHit(pet(happiness = 30.0), 0.31))
+    @Test fun hitsRollAgainstConfidence() {
+        val stats = PetCombatStats(damage = 1.0, maxDamage = 1.0, attacksPerSecond = 1.0, maxAttacksPerSecond = 1.0, confidence = 30.0)
+        assertTrue(DefenseRules.rollHit(stats, 0.29))
+        assertFalse(DefenseRules.rollHit(stats, 0.31))
     }
 
     @Test fun elementalEffects() {

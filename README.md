@@ -51,9 +51,11 @@ La partida se guarda sola: en Android en SharedPreferences y en escritorio en
   avanzan por el camino y aceleran cada 10 s; suben de nivel cada 20 s.
 - **Progresión**: 1 XP por enemigo derrotado; pasar del nivel n al n+1 cuesta
   10·(n+1) XP. Máximo nivel 10.
-- **Estado en combate**: descanso → velocidad de ataque, hambre → daño,
-  diversión → % de acierto. El descanso solo baja combatiendo y se recupera
-  entero durmiendo 10 s.
+- **Necesidades y stats de combate**: cada stat de combate rinde su total (según
+  el nivel) por la media de tres necesidades: daño ← hambre, plumaje, pico y
+  garras; velocidad ← descanso, digestión, clima; confianza (% de acierto) ←
+  diversión, social, higiene. Sin descanso no ataca. Detalle completo en
+  `docs/reglas-de-combate.md`.
 - **Habilidades por elemento**: fuego quema (120% del daño en 3 s), agua
   ralentiza, aire empuja hacia atrás, tierra golpea normal.
 

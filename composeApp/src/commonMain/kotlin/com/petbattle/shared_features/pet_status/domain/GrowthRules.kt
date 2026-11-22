@@ -2,7 +2,7 @@ package com.petbattle.shared_features.pet_status.domain
 
 import com.petbattle.shared_features.biomes.domain.Biome
 import com.petbattle.shared_features.pet_food.domain.Food
-import com.petbattle.shared_features.pet_skills.domain.entities.PetSkillsEntity
+import com.petbattle.shared_features.pet_skills.domain.entities.PetProgressionEntity
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import com.petbattle.shared_features.pet_species.domain.biomes
 import com.petbattle.shared_features.pet_species.domain.diet
@@ -40,6 +40,6 @@ object GrowthRules {
     /** El polluelo crece: nueva especie y sus rasgos de nivel 0. Conserva nombre, estado y bioma. */
     fun grow(pet: PetEntity, random: Random): PetEntity {
         val adult = adultFor(pet.biome, pet.meals, random)
-        return pet.copy(species = adult, skills = PetSkillsEntity.forSpecies(adult), meals = emptyMap())
+        return pet.copy(species = adult, progression = PetProgressionEntity.forSpecies(adult), meals = emptyMap())
     }
 }

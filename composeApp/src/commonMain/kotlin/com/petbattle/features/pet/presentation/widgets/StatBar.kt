@@ -22,11 +22,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import com.petbattle.shared_features.pet_status.domain.PetStatusBalance
+import com.petbattle.shared_features.pet_status.domain.PetNeedsBalance
 
 @Composable
 fun StatBar(icon: ImageVector, label: String, value: Double, modifier: Modifier = Modifier) {
-    val t = (value / PetStatusBalance.MAX_STAT).coerceIn(0.0, 1.0).toFloat()
+    val t = (value / PetNeedsBalance.MAX_STAT).coerceIn(0.0, 1.0).toFloat()
     val color = lerp(Color(0xFFE5484D), Color(0xFF46A758), t * t)
     val animated by animateFloatAsState(t, tween(400, easing = FastOutSlowInEasing))
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {

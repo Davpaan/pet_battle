@@ -57,7 +57,10 @@ import com.petbattle.resources.ui_stat_hunger
 import com.petbattle.resources.ui_stat_hygiene
 import com.petbattle.resources.ui_stat_plumage
 import com.petbattle.resources.ui_stat_social
-import com.petbattle.resources.ui_stat_trust
+import com.petbattle.resources.ui_stat_confidence
+import com.petbattle.resources.ui_info
+import com.petbattle.resources.ui_combat_damage
+import com.petbattle.resources.ui_combat_speed
 import com.petbattle.resources.ui_wake
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
@@ -96,7 +99,8 @@ enum class GameIcon(val res: DrawableResource) {
     Hunger(Res.drawable.ui_stat_hunger), Energy(Res.drawable.ui_stat_energy), Fun(Res.drawable.ui_stat_fun),
     Hygiene(Res.drawable.ui_stat_hygiene), Social(Res.drawable.ui_stat_social), Climate(Res.drawable.ui_stat_climate),
     Plumage(Res.drawable.ui_stat_plumage), Digestion(Res.drawable.ui_stat_digestion), Beak(Res.drawable.ui_stat_beak),
-    Trust(Res.drawable.ui_stat_trust),
+    Confidence(Res.drawable.ui_stat_confidence), Info(Res.drawable.ui_info),
+    Damage(Res.drawable.ui_combat_damage), Speed(Res.drawable.ui_combat_speed),
 }
 
 @Composable

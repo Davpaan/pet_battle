@@ -13,7 +13,7 @@ import kotlinx.serialization.Serializable
  * (hambre, cansancio...): las habilidades solo cambian peleando.
  */
 @Serializable
-data class PetSkillsEntity(
+data class PetProgressionEntity(
     val element: PetElement,
     val type: PetType,
     val level: Int = 0,
@@ -23,6 +23,6 @@ data class PetSkillsEntity(
     companion object {
     /** Nivel 0 con los rasgos naturales de [species]. */
         fun forSpecies(species: PetSpecies) =
-            PetSkillsEntity(element = species.element, type = species.type)
+            PetProgressionEntity(element = species.element, type = species.type)
     }
 }

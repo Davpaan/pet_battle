@@ -2,15 +2,16 @@ package com.petbattle.shared_features.pet_status.domain.entities
 
 import com.petbattle.shared_features.biomes.domain.Biome
 import com.petbattle.shared_features.pet_food.domain.Food
-import com.petbattle.shared_features.pet_skills.domain.entities.PetSkillsEntity
+import com.petbattle.shared_features.pet_skills.domain.entities.PetProgressionEntity
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import com.petbattle.shared_features.pet_species.domain.biomes
 import com.petbattle.shared_features.pet_species.domain.diet
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
  * Una mascota criada: quién es ([id], [name], [species]), dónde vive ([biome]), cómo está
- * ([status]) y qué puede hacer en combate ([skills]). Estado y habilidades son
+ * ([needs]) y cómo ha progresado ([progression]). Necesidades y progresión son
  * entidades separadas con sus propias reglas. Mientras es polluelo, [meals] cuenta lo que
  * ha comido para decidir en qué especie se convierte.
  */
@@ -19,8 +20,9 @@ data class PetEntity(
     val id: String,
     val name: String,
     val species: PetSpecies,
-    val status: PetStatusEntity,
-    val skills: PetSkillsEntity,
+    // Claves JSON antiguas ("status", "skills") para no romper partidas guardadas.
+    @SerialName("status") val needs: PetNeedsEntity,
+    @SerialName("skills") val progression: PetProgressionEntity,
     /** Partidas antiguas sin bioma: el primero de su especie. */
     val biome: Biome = species.biomes.first(),
     /** Veces que ha comido cada comida siendo polluelo. */
@@ -47,8 +49,8 @@ data class PetEntity(
             id = id ?: "${species.name}-$now",
             name = name,
             species = species,
-            status = PetStatusEntity.initial(now),
-            skills = PetSkillsEntity.forSpecies(species),
+            needs = PetNeedsEntity.initial(now),
+            progression = PetProgressionEntity.forSpecies(species),
             biome = biome,
         )
 

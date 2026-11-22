@@ -2,15 +2,17 @@ package com.petbattle.shared_features.pet_status.application
 
 import com.petbattle.core.config.AppConfig
 import com.petbattle.core.time.Clock
+import com.petbattle.core.time.DayCycle
+import com.petbattle.core.time.DayPhase
 import com.petbattle.shared_features.biomes.domain.Biome
 import com.petbattle.shared_features.pet_food.domain.Food
 import com.petbattle.shared_features.pet_status.domain.FeedResult
 import com.petbattle.shared_features.pet_status.domain.PetNameError
 import com.petbattle.shared_features.pet_status.domain.PetRepository
-import com.petbattle.shared_features.pet_status.domain.PetStatusRules
+import com.petbattle.shared_features.pet_status.domain.PetNeedsRules
 import com.petbattle.shared_features.pet_status.domain.GameRules
 import com.petbattle.shared_features.pet_status.domain.entities.GameStateEntity
-import com.petbattle.shared_features.pet_status.domain.entities.PetStatusEntity
+import com.petbattle.shared_features.pet_status.domain.entities.PetNeedsEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -23,8 +25,9 @@ import kotlin.random.Random
 
 /**
  * Orquesta todas las mascotas criadas: carga la partida, aplica la pérdida offline a
- * la mascota activa, ejecuta su tick en vivo, traduce las intenciones del jugador en
- * llamadas a [PetStatusRules] / [GameRules] y guarda automáticamente cada cambio.
+ * todas, ejecuta el tick en vivo (el tiempo es común: avanzan todas a la vez), traduce las
+ * intenciones del jugador en
+ * llamadas a [PetNeedsRules] / [GameRules] y guarda automáticamente cada cambio.
  *
  * [gameState] es `null` mientras se carga.
  */
@@ -34,8 +37,18 @@ class PetController(
     private val scope: CoroutineScope,
     private val autoTick: Boolean = true,
     private val random: Random = Random.Default,
+    /** Momento del día de un instante (hora local; sustituible en tests). */
+    private val dayPhaseAt: (Long) -> DayPhase = DayCycle::phaseAt,
 ) {
+    /** Solo de noche descansan solas. */
+    private val isNightAt: (Long) -> Boolean = { dayPhaseAt(it) == DayPhase.night }
+
     private val _gameState = MutableStateFlow<GameStateEntity?>(null)
+
+    private val _dayPhase = MutableStateFlow(dayPhaseAt(clock.nowMillis()))
+
+    /** Momento del día actual: cambia el filtro de la pantalla y, de noche, descansan. */
+    val dayPhase: StateFlow<DayPhase> = _dayPhase.asStateFlow()
     val gameState: StateFlow<GameStateEntity?> = _gameState.asStateFlow()
 
     private var ticker: Job? = null
@@ -49,8 +62,8 @@ class PetController(
             // Partida nueva: en la pradera, con el primer huevo gratis.
             _gameState.value = GameStateEntity.newGame
         } else {
-            // Puesta al día offline (solo la mascota activa; las que descansan están congeladas).
-            val gameState = GameRules.advanceActive(GameRules.migrate(saved), now)
+            // Puesta al día offline de todas las mascotas (el tiempo es común para todas).
+            val gameState = advanceAll(GameRules.migrate(saved), now)
             repository.save(gameState)
             _gameState.value = gameState
         }
@@ -62,13 +75,13 @@ class PetController(
     /** Ofrece [food] a la mascota activa; `null` si ahora no se le puede dar de comer. */
     fun feed(food: Food): FeedResult? {
         val gameState = _gameState.value ?: return null
-        val (next, result) = GameRules.feedActive(advanceActive(gameState, clock.nowMillis()), food, random)
+        val (next, result) = GameRules.feedActive(advanceAll(gameState, clock.nowMillis()), food, random)
         if (result != null) set(next, saveNow = result == FeedResult.grew)
         return result
     }
-    fun toggleSleep() = applyToActive(PetStatusRules::toggleSleep, saveNow = true)
-    fun clean() = applyToActive(PetStatusRules::clean)
-    fun cuddle() = applyToActive(PetStatusRules::cuddle)
+    fun toggleSleep() = applyToActive(PetNeedsRules::toggleSleep, saveNow = true)
+    fun clean() = applyToActive(PetNeedsRules::clean)
+    fun cuddle() = applyToActive(PetNeedsRules::cuddle)
 
     /**
      * Compra un huevo y cría un polluelo llamado [name] en el bioma actual; devuelve por qué se
@@ -79,7 +92,7 @@ class PetController(
         if (!GameRules.canHatch(gameState)) return null
         GameRules.validateName(gameState, name)?.let { return it }
         val now = clock.nowMillis()
-        set(GameRules.hatch(advanceActive(gameState, now), name, now), saveNow = true)
+        set(GameRules.hatch(advanceAll(gameState, now), name, now), saveNow = true)
         return null
     }
 
@@ -87,21 +100,21 @@ class PetController(
     fun release(petId: String) {
         val gameState = _gameState.value ?: return
         val now = clock.nowMillis()
-        set(GameRules.release(advanceActive(gameState, now), petId, now), saveNow = true)
+        set(GameRules.release(advanceAll(gameState, now), petId), saveNow = true)
     }
 
     /** Viaja a [biome] si está comprado (vacío si nunca has criado allí). */
     fun enterBiome(biome: Biome) {
         val gameState = _gameState.value ?: return
         val now = clock.nowMillis()
-        set(GameRules.enterBiome(advanceActive(gameState, now), biome, now), saveNow = true)
+        set(GameRules.enterBiome(advanceAll(gameState, now), biome), saveNow = true)
     }
 
     /** Vuelve a una mascota ya criada; la actual empieza a descansar. */
     fun switchTo(petId: String) {
         val gameState = _gameState.value ?: return
         val now = clock.nowMillis()
-        set(GameRules.switchTo(advanceActive(gameState, now), petId, now), saveNow = true)
+        set(GameRules.switchTo(advanceAll(gameState, now), petId), saveNow = true)
     }
 
     /** Oro ganado (p. ej. enemigos derrotados). */
@@ -115,7 +128,7 @@ class PetController(
         val gameState = _gameState.value ?: return false
         if (!GameRules.canBuyBiome(gameState, biome)) return false
         val now = clock.nowMillis()
-        set(GameRules.enterBiome(GameRules.buyBiome(advanceActive(gameState, now), biome), biome, now), saveNow = true)
+        set(GameRules.enterBiome(GameRules.buyBiome(advanceAll(gameState, now), biome), biome), saveNow = true)
         return true
     }
 
@@ -160,15 +173,16 @@ class PetController(
 
     // --- Internos -------------------------------------------------------------------
 
-    /** Primero actualiza el estado de la mascota activa hasta "ahora" y luego aplica [action]. */
-    private fun applyToActive(action: (PetStatusEntity) -> PetStatusEntity, saveNow: Boolean = false) {
+    /** Primero pone al día a todas las mascotas hasta "ahora" y luego aplica [action] a la activa. */
+    private fun applyToActive(action: (PetNeedsEntity) -> PetNeedsEntity, saveNow: Boolean = false) {
         val gameState = _gameState.value ?: return
         val now = clock.nowMillis()
-        set(GameRules.updateActiveStatus(GameRules.advanceActive(gameState, now), action), saveNow)
+        _dayPhase.value = dayPhaseAt(now)
+        set(GameRules.updateActiveNeeds(advanceAll(gameState, now), action), saveNow)
     }
 
-    private fun advanceActive(gameState: GameStateEntity, now: Long) =
-        GameRules.advanceActive(gameState, now)
+    private fun advanceAll(gameState: GameStateEntity, now: Long) =
+        GameRules.advanceAll(gameState, now, isNightAt)
 
     private fun set(next: GameStateEntity, saveNow: Boolean = false) {
         if (next == _gameState.value) return
@@ -176,7 +190,7 @@ class PetController(
         if (saveNow) flush() else scheduleSave()
     }
 
-    /** Los ticks ponen al día a la mascota activa hasta "ahora" una vez por segundo. */
+    /** Los ticks ponen al día a todas las mascotas hasta "ahora" una vez por segundo. */
     fun tick() = applyToActive({ it })
 
     private fun startTicker() {

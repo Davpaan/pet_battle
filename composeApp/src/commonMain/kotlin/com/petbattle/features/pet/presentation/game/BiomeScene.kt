@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.petbattle.core.time.DayPhase
 import com.petbattle.core.ui.drawSpriteFrame
 import com.petbattle.shared_features.biomes.domain.Biome
 import com.petbattle.shared_features.biomes.presentation.background
@@ -65,7 +67,11 @@ private const val GROUND = 0.93f
  * (batiendo las alas) hasta otro punto al azar del suelo. En vuelo pueden cruzarse, pero
  * al posarse no pueden quedar una encima de otra: si el sitio está ocupado, sigue de largo
  * o se da la vuelta. Tocar una mascota la selecciona ([onPetTapped]). La mascota activa
- * ([activeId]) se dibuja delante y con su nombre resaltado; si duerme, se hace de noche.
+ * ([activeId]) se dibuja delante y con su nombre resaltado. Según el momento del día
+ * ([dayPhase], hora local): por la mañana la imagen tal cual; por la tarde un filtro de
+ * atardecer sutil; de noche la pantalla se oscurece y todas descansan (pose de dormir, sin
+ * volar), aunque se puede seguir tocándolas. Fuera de la noche solo descansa la que se haya
+ * acostado, sin cambiar la pantalla.
  * [walkStartInset] y [walkEndInset] dejan libre a cada lado el espacio que ocupen los botones.
  */
 @Composable
@@ -75,6 +81,7 @@ fun BiomeScene(
     activeId: String?,
     onPetTapped: (String) -> Unit,
     modifier: Modifier = Modifier,
+    dayPhase: DayPhase = DayPhase.morning,
     walkStartInset: Dp = 0.dp,
     walkEndInset: Dp = 0.dp,
 ) {
@@ -83,6 +90,7 @@ fun BiomeScene(
     val state = remember(biome) { BiomeSceneState() }
     val currentPets by rememberUpdatedState(pets)
     val currentActive by rememberUpdatedState(activeId)
+    val currentPhase by rememberUpdatedState(dayPhase)
     val onTap by rememberUpdatedState(onPetTapped)
     val textMeasurer = rememberTextMeasurer()
     var frame by remember { mutableLongStateOf(0L) }
@@ -93,7 +101,7 @@ fun BiomeScene(
             withFrameNanos { now ->
                 val dt = if (last == 0L) 0.0 else (now - last) / 1e9
                 last = now
-                state.update(min(dt, 0.1), currentPets, currentActive)
+                state.update(min(dt, 0.1), currentPets, currentPhase)
                 frame++
             }
         }
@@ -109,7 +117,7 @@ fun BiomeScene(
         },
     ) {
         frame // se lee para que cada frame se redibuje
-        drawBiomeBackdrop(backdrop, state.nightT.toFloat())
+        drawBiomeBackdrop(backdrop, state.tint, state.tintAlpha)
         state.layout(size, walkStartInset.toPx(), walkEndInset.toPx())
         // La activa al final: queda delante de las demás.
         val ordered = pets.sortedBy { it.id == activeId }
@@ -117,6 +125,8 @@ fun BiomeScene(
             val actor = state.actors[pet.id] ?: continue
             drawActor(state, actor, pet, sheets.getValue(pet.species))
         }
+        // El filtro también cae sobre los pájaros, más suave que sobre el fondo.
+        if (state.tintAlpha > 0.01f) drawRect(state.tint.copy(alpha = state.tintAlpha * PET_TINT_SHARE))
         for (pet in ordered) {
             val actor = state.actors[pet.id] ?: continue
             drawHearts(actor)
@@ -167,7 +177,6 @@ private class Actor(var x: Double, val phase: Double) {
 /** Estado de toda la escena, guiado por frames. Las posiciones x van de 0 a 1 en la zona de paseo. */
 private class BiomeSceneState {
     var time = 0.0
-    var nightT = 0.0
     val actors = mutableMapOf<String, Actor>()
 
     // Medidas del último frame dibujado (ver layout).
@@ -189,21 +198,34 @@ private class BiomeSceneState {
         gap = (slotSide * 0.85f / walkWidth).toDouble()
     }
 
-    fun update(dt: Double, pets: List<PetEntity>, activeId: String?) {
+    /** Si es de noche (lo último que dijo la pantalla): descansan todas. */
+    var night = false
+
+    // Filtro del momento del día, con transición suave al cambiar.
+    var tint = NightTint
+    var tintAlpha = 0f
+
+    /** Dormida o de noche: descansa (pose de dormir, sin volar). */
+    fun isResting(pet: PetEntity) = pet.needs.isSleeping || night
+
+    fun update(dt: Double, pets: List<PetEntity>, phase: DayPhase) {
         time += dt
+        night = phase == DayPhase.night
         val ids = pets.map { it.id }.toSet()
         actors.keys.retainAll(ids)
         for (pet in pets) if (pet.id !in actors) actors[pet.id] = Actor(spawnSpot(), Random.nextDouble() * 10)
 
-        val activeAsleep = pets.firstOrNull { it.id == activeId }?.status?.isSleeping == true
-        nightT += ((if (activeAsleep) 1.0 else 0.0) - nightT) * (dt * 2.5).coerceIn(0.0, 1.0)
+        val (targetTint, targetAlpha) = phaseTint(phase)
+        val k = (dt * 2.5).coerceIn(0.0, 1.0).toFloat()
+        tint = lerp(tint, targetTint, k)
+        tintAlpha += (targetAlpha - tintAlpha) * k
 
         val ease = (dt * 4).coerceIn(0.0, 1.0)
         for (pet in pets) {
             val a = actors.getValue(pet.id)
-            val asleep = pet.status.isSleeping
+            val asleep = isResting(pet)
             a.sleepT += ((if (asleep) 1.0 else 0.0) - a.sleepT) * ease
-            val targetSat = 0.3 + 0.7 * pet.status.wellbeing.coerceIn(0.0, 1.0)
+            val targetSat = 0.3 + 0.7 * pet.needs.wellbeing.coerceIn(0.0, 1.0)
             a.saturation += (targetSat - a.saturation) * ease
             a.lift += ((if (a.moving) 1.0 else 0.0) - a.lift) * (dt * 5).coerceIn(0.0, 1.0)
 
@@ -291,10 +313,10 @@ private class BiomeSceneState {
     fun onTapped(id: String, pets: List<PetEntity>) {
         val a = actors[id] ?: return
         a.bounceT = 0.0
-        if (pets.firstOrNull { it.id == id }?.status?.isSleeping != true) {
-            a.reactT = 0.0
-            a.hearts += Actor.Heart()
-        }
+        val pet = pets.firstOrNull { it.id == id } ?: return
+        // Dormida no se entera; de noche descansando sí recibe el mimo (sin cambiar de pose).
+        if (!pet.needs.isSleeping) a.hearts += Actor.Heart()
+        if (!isResting(pet)) a.reactT = 0.0
     }
 
     companion object {
@@ -325,7 +347,7 @@ private fun DrawScope.drawActor(state: BiomeSceneState, a: Actor, pet: PetEntity
     val shadow = side * (0.6f - 0.25f * a.lift.toFloat())
     drawOval(Color(0x26000000), Offset(left + side / 2 - shadow / 2, groundY - side * 0.04f), Size(shadow, side * 0.08f))
 
-    val asleep = pet.status.isSleeping
+    val asleep = state.isResting(pet)
     val t = state.time + a.phase
     val (col, row) = when {
         a.lift > 0.05 -> (floor(t / 0.08).toInt() % 4) to BirdSheet.FLY_ROW
@@ -341,7 +363,7 @@ private fun DrawScope.drawActor(state: BiomeSceneState, a: Actor, pet: PetEntity
     val (bx, by) = a.bounceScale()
     val filter = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(a.saturation.toFloat()) })
     val pivot = Offset(left + side / 2, topY + side)
-    val dirtiness = ((60 - pet.status.hygiene) / 60).coerceIn(0.0, 1.0)
+    val dirtiness = ((60 - pet.needs.hygiene) / 60).coerceIn(0.0, 1.0)
 
     scale(bx * (1 + b), by * (1 - b), pivot) {
         val bounds = Rect(left, topY, left + side, topY + side)
@@ -420,12 +442,23 @@ private fun DrawScope.drawName(textMeasurer: TextMeasurer, a: Actor, name: Strin
 }
 
 private val NightTint = Color(0xFF141A3C)
+private val EveningTint = Color(0xFFFF8A3D)
+
+/** Qué parte del filtro reciben los pájaros (respecto al fondo). */
+private const val PET_TINT_SHARE = 0.5f
+
+/** Filtro de cada momento: por la tarde, un atardecer muy sutil; de noche, oscuro. */
+private fun phaseTint(phase: DayPhase): Pair<Color, Float> = when (phase) {
+    DayPhase.morning -> EveningTint to 0f
+    DayPhase.evening -> EveningTint to 0.14f
+    DayPhase.night -> NightTint to 0.6f
+}
 
 /**
  * Dibuja [image] cubriendo todo el lienzo (recortando lo que sobre, centrado) sin suavizar los
- * píxeles, y lo oscurece hacia la noche según [nightT] (0 = día, 1 = noche).
+ * píxeles, con un filtro de color [tint] de opacidad [tintAlpha] (momento del día).
  */
-fun DrawScope.drawBiomeBackdrop(image: ImageBitmap, nightT: Float = 0f) {
+fun DrawScope.drawBiomeBackdrop(image: ImageBitmap, tint: Color = NightTint, tintAlpha: Float = 0f) {
     val w = size.width
     val h = size.height
     val k = max(w / image.width, h / image.height)
@@ -438,5 +471,5 @@ fun DrawScope.drawBiomeBackdrop(image: ImageBitmap, nightT: Float = 0f) {
         dstSize = IntSize(w.roundToInt(), h.roundToInt()),
         filterQuality = FilterQuality.None,
     )
-    if (nightT > 0.01f) drawRect(NightTint.copy(alpha = 0.6f * nightT))
+    if (tintAlpha > 0.01f) drawRect(tint.copy(alpha = tintAlpha))
 }

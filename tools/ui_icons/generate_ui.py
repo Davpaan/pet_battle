@@ -348,10 +348,32 @@ def stat_beak(c):
     detail(c, ellipse(36, 36, 2.6, 2.6), GOLD_DARK)
 
 
-def stat_trust(c):
+def stat_trust(c):  # confianza (corazón)
     heart = union(ellipse(34, 38, 20, 20), ellipse(66, 38, 20, 20), poly((14, 44), (86, 44), (50, 88)))
     paint(c, heart, RED)
     detail(c, ellipse(30, 32, 6, 4), WHITE, 0.6)
+
+
+# Stats de combate e información.
+def info(c):
+    paint(c, ellipse(50, 50, 40, 40), BLUE)
+    paint(c, ellipse(50, 28, 7, 7), WHITE, line=2.2, highlight=False)
+    paint(c, rrect(43, 40, 57, 76, 5), WHITE, line=2.2, highlight=False)
+
+
+def combat_damage(c):
+    # Tres zarpazos.
+    for dx in (-18, 0, 18):
+        slash = poly((30 + dx, 84), (40 + dx, 84), (74 + dx, 16), (66 + dx, 14))
+        paint(c, slash, RED, line=2.4)
+
+
+def combat_speed(c):
+    for i, y in enumerate((34, 50, 66)):
+        detail(c, stroke([(8 + i * 4, y), (34 + i * 4, y)], 4), (170, 200, 230))
+    wing = poly((34, 72), (52, 30), (76, 16), (90, 22), (80, 34), (90, 38), (78, 50), (86, 56), (66, 66))
+    paint(c, wing, SKY)
+    detail(c, stroke([(44, 66), (76, 28)], 2.2), BLUE)
 
 
 ICONS = {
@@ -361,7 +383,7 @@ ICONS = {
     "stat_hunger": stat_hunger, "stat_energy": stat_energy, "stat_fun": stat_fun,
     "stat_hygiene": stat_hygiene, "stat_social": stat_social, "stat_climate": stat_climate,
     "stat_plumage": stat_plumage, "stat_digestion": stat_digestion, "stat_beak": stat_beak,
-    "stat_trust": stat_trust,
+    "stat_confidence": stat_trust, "info": info, "combat_damage": combat_damage, "combat_speed": combat_speed,
 }
 
 
