@@ -45,9 +45,15 @@ La partida se guarda sola: en Android en SharedPreferences y en escritorio en
   tras 10 comidas, crece en una especie adulta de su bioma que coma su comida favorita (la
   que más veces le has dado). Si hay empate, o ninguna especie del bioma come eso, se elige
   al azar entre las del bioma.
+- **Cría**: dos adultos de la misma especie en el mismo bioma, con la satisfacción global
+  por encima del 90 %, tienen una vez al día un 50 % de probabilidad de poner un huevo, que
+  eclosiona a las 8 h en un polluelo que crecerá a la especie de sus padres.
+- **Rareza**: de 1 a 5 estrellas (común, poco común, raro, épico, legendario). Los huevos
+  comprados salen con 1 (90 %) o 2 (10 %); las crías heredan de sus padres (ver
+  `docs/reglas-de-combate.md`).
 - **Cuidados**: aliméntala (eligiendo la comida: los adultos rechazan lo que no es de su
   dieta), límpiala, mándala a dormir y tócala para subir su diversión.
-- **Defender**: coloca en la hierba las mascotas adultas del bioma actual (los polluelos no luchan). Los enemigos
+- **Defender**: coloca en la hierba tus mascotas adultas, de cualquier bioma (los polluelos no luchan). Los enemigos
   avanzan por el camino y aceleran cada 10 s; suben de nivel cada 20 s.
 - **Progresión**: 1 XP por enemigo derrotado; pasar del nivel n al n+1 cuesta
   10·(n+1) XP. Máximo nivel 10.

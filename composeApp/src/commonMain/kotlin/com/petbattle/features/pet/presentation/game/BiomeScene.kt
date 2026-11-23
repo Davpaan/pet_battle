@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.input.pointer.pointerInput
@@ -39,6 +40,9 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.petbattle.core.time.DayPhase
+import com.petbattle.resources.pet_egg
+import com.petbattle.resources.Res
+import com.petbattle.core.time.systemNowMillis
 import com.petbattle.core.ui.drawSpriteFrame
 import com.petbattle.shared_features.biomes.domain.Biome
 import com.petbattle.shared_features.biomes.presentation.background
@@ -87,6 +91,7 @@ fun BiomeScene(
 ) {
     val backdrop = imageResource(biome.background)
     val sheets = PetSpecies.entries.associateWith { imageResource(it.sheet) }
+    val eggImage = imageResource(Res.drawable.pet_egg)
     val state = remember(biome) { BiomeSceneState() }
     val currentPets by rememberUpdatedState(pets)
     val currentActive by rememberUpdatedState(activeId)
@@ -111,27 +116,30 @@ fun BiomeScene(
         modifier.pointerInput(state) {
             detectTapGestures { pos ->
                 val id = state.petAt(pos, currentActive) ?: return@detectTapGestures
+                // Los huevos no se pueden seleccionar ni mimar.
+                if (currentPets.firstOrNull { it.id == id }?.isEgg == true) return@detectTapGestures
                 state.onTapped(id, currentPets)
                 onTap(id)
             }
         },
     ) {
         frame // se lee para que cada frame se redibuje
-        drawBiomeBackdrop(backdrop, state.tint, state.tintAlpha)
+        drawBiomeBackdrop(backdrop, state.look)
         state.layout(size, walkStartInset.toPx(), walkEndInset.toPx())
         // La activa al final: queda delante de las demás.
         val ordered = pets.sortedBy { it.id == activeId }
+        val now = systemNowMillis()
         for (pet in ordered) {
             val actor = state.actors[pet.id] ?: continue
-            drawActor(state, actor, pet, sheets.getValue(pet.species))
+            if (pet.isEgg) drawEgg(state, actor, pet, eggImage, now)
+            else drawActor(state, actor, pet, sheets.getValue(pet.species))
         }
-        // El filtro también cae sobre los pájaros, más suave que sobre el fondo.
-        if (state.tintAlpha > 0.01f) drawRect(state.tint.copy(alpha = state.tintAlpha * PET_TINT_SHARE))
         for (pet in ordered) {
             val actor = state.actors[pet.id] ?: continue
             drawHearts(actor)
             drawZzz(textMeasurer, state, actor)
-            drawName(textMeasurer, actor, pet.name, active = pet.id == activeId)
+            val label = if (pet.isEgg) "Huevo · ${timeLeft(pet.hatchesAt!! - now)}" else pet.name
+            drawName(textMeasurer, actor, label, active = pet.id == activeId)
         }
     }
 }
@@ -201,9 +209,8 @@ private class BiomeSceneState {
     /** Si es de noche (lo último que dijo la pantalla): descansan todas. */
     var night = false
 
-    // Filtro del momento del día, con transición suave al cambiar.
-    var tint = NightTint
-    var tintAlpha = 0f
+    // Aspecto del momento del día, con transición suave al cambiar de franja.
+    var look = DayLook.Midday
 
     /** Dormida o de noche: descansa (pose de dormir, sin volar). */
     fun isResting(pet: PetEntity) = pet.needs.isSleeping || night
@@ -215,10 +222,7 @@ private class BiomeSceneState {
         actors.keys.retainAll(ids)
         for (pet in pets) if (pet.id !in actors) actors[pet.id] = Actor(spawnSpot(), Random.nextDouble() * 10)
 
-        val (targetTint, targetAlpha) = phaseTint(phase)
-        val k = (dt * 2.5).coerceIn(0.0, 1.0).toFloat()
-        tint = lerp(tint, targetTint, k)
-        tintAlpha += (targetAlpha - tintAlpha) * k
+        look = lerp(look, DayLook.of(phase), (dt * 2.5).coerceIn(0.0, 1.0).toFloat())
 
         val ease = (dt * 4).coerceIn(0.0, 1.0)
         for (pet in pets) {
@@ -229,7 +233,8 @@ private class BiomeSceneState {
             a.saturation += (targetSat - a.saturation) * ease
             a.lift += ((if (a.moving) 1.0 else 0.0) - a.lift) * (dt * 5).coerceIn(0.0, 1.0)
 
-            if (a.moving) fly(a, dt)
+            if (pet.isEgg) a.moving = false // los huevos no se mueven
+            else if (a.moving) fly(a, dt)
             else if (!asleep && a.reactT < 0) {
                 a.restFor -= dt
                 a.nextTurnIn -= dt
@@ -332,6 +337,33 @@ private val DirtSplats = listOf(28 to 40, 36 to 37, 22 to 31, 32 to 45, 41 to 47
 private val SplatShape = listOf(1 to 0, 2 to 0, 0 to 1, 1 to 1, 2 to 1, 3 to 1, 1 to 2, 2 to 2, 3 to 2)
 private val SplatCore = listOf(1 to 1, 2 to 1, 2 to 2)
 
+/** Tiempo que falta para eclosionar, en horas y minutos ("3 h 20 min", "12 min"). */
+private fun timeLeft(ms: Long): String {
+    val minutes = (ms.coerceAtLeast(0) + 59_999) / 60_000
+    val h = minutes / 60
+    val m = minutes % 60
+    return if (h > 0) "$h h $m min" else "$m min"
+}
+
+/** Un huevo en su nido: quieto, y en su última hora se balancea porque va a eclosionar. */
+private fun DrawScope.drawEgg(state: BiomeSceneState, a: Actor, pet: PetEntity, image: ImageBitmap, now: Long) {
+    val side = state.slotSide * 0.55f
+    val slotLeft = state.walkLeft + a.x.toFloat() * state.walkWidth
+    val left = slotLeft + (state.slotSide - side) / 2
+    val topY = state.groundY - side
+    a.rect = Rect(left, topY, left + side, topY + side)
+    val remaining = pet.hatchesAt!! - now
+    val wobble = if (remaining < 3_600_000L) sin((state.time + a.phase) * 9).toFloat() * 7f else 0f
+    rotate(wobble, pivot = Offset(left + side / 2, state.groundY)) {
+        drawImage(
+            image,
+            dstOffset = IntOffset(left.roundToInt(), topY.roundToInt()),
+            dstSize = IntSize(side.roundToInt(), side.roundToInt()),
+            colorFilter = state.look.colorFilter(PET_LOOK_SHARE),
+        )
+    }
+}
+
 private fun DrawScope.drawActor(state: BiomeSceneState, a: Actor, pet: PetEntity, sheet: ImageBitmap) {
     // Los sprites son de alta resolución: se escalan libremente con suavizado.
     val side = state.slotSide * pet.species.spriteScale
@@ -361,7 +393,10 @@ private fun DrawScope.drawActor(state: BiomeSceneState, a: Actor, pet: PetEntity
     val amount = (0.02 + a.sleepT * 0.02) * (1 - a.lift)
     val b = (sin(t * speed) * amount).toFloat()
     val (bx, by) = a.bounceScale()
-    val filter = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(a.saturation.toFloat()) })
+    // Desaturado si está mal, y con el filtro del momento del día (más suave que el fondo).
+    val matrix = ColorMatrix().apply { setToSaturation(a.saturation.toFloat()) }
+    matrix.timesAssign(state.look.colorMatrix(PET_LOOK_SHARE))
+    val filter = ColorFilter.colorMatrix(matrix)
     val pivot = Offset(left + side / 2, topY + side)
     val dirtiness = ((60 - pet.needs.hygiene) / 60).coerceIn(0.0, 1.0)
 
@@ -441,24 +476,14 @@ private fun DrawScope.drawName(textMeasurer: TextMeasurer, a: Actor, name: Strin
     }
 }
 
-private val NightTint = Color(0xFF141A3C)
-private val EveningTint = Color(0xFFFF8A3D)
-
-/** Qué parte del filtro reciben los pájaros (respecto al fondo). */
-private const val PET_TINT_SHARE = 0.5f
-
-/** Filtro de cada momento: por la tarde, un atardecer muy sutil; de noche, oscuro. */
-private fun phaseTint(phase: DayPhase): Pair<Color, Float> = when (phase) {
-    DayPhase.morning -> EveningTint to 0f
-    DayPhase.evening -> EveningTint to 0.14f
-    DayPhase.night -> NightTint to 0.6f
-}
+/** Qué parte del filtro del momento del día reciben los pájaros (respecto al fondo). */
+private const val PET_LOOK_SHARE = 0.6f
 
 /**
  * Dibuja [image] cubriendo todo el lienzo (recortando lo que sobre, centrado) sin suavizar los
- * píxeles, con un filtro de color [tint] de opacidad [tintAlpha] (momento del día).
+ * píxeles, con el aspecto [look] del momento del día (matriz de color + degradado de cielo).
  */
-fun DrawScope.drawBiomeBackdrop(image: ImageBitmap, tint: Color = NightTint, tintAlpha: Float = 0f) {
+fun DrawScope.drawBiomeBackdrop(image: ImageBitmap, look: DayLook = DayLook.Midday) {
     val w = size.width
     val h = size.height
     val k = max(w / image.width, h / image.height)
@@ -470,6 +495,7 @@ fun DrawScope.drawBiomeBackdrop(image: ImageBitmap, tint: Color = NightTint, tin
         srcSize = IntSize(srcW, srcH),
         dstSize = IntSize(w.roundToInt(), h.roundToInt()),
         filterQuality = FilterQuality.None,
+        colorFilter = if (look.isNeutral) null else look.colorFilter(),
     )
-    if (tintAlpha > 0.01f) drawRect(tint.copy(alpha = tintAlpha))
+    drawDayGradient(look)
 }

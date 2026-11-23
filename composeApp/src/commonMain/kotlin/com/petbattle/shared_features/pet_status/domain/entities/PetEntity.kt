@@ -27,7 +27,21 @@ data class PetEntity(
     val biome: Biome = species.biomes.first(),
     /** Veces que ha comido cada comida siendo polluelo. */
     val meals: Map<Food, Int> = emptyMap(),
+    /**
+     * Especie en la que crecerá este polluelo, decida lo que decida su comida. La tienen los
+     * nacidos de una pareja (la de sus padres); `null` = la decide la comida (GrowthRules).
+     */
+    val destinedSpecies: PetSpecies? = null,
+    /** Si no es `null`, aún es un huevo: eclosiona en este instante (ms epoch). */
+    val hatchesAt: Long? = null,
+    /** Último día (fecha local, ver DayCycle.dayAt) en que intentó criar con su pareja. */
+    val lastBreedingDay: Long = -1,
+    /** Rareza, de 1 a 5 estrellas (ver TierRules). Partidas antiguas: 1. */
+    val tier: Int = 1,
 ) {
+    /** Todavía es un huevo: no se puede seleccionar ni cuidar, y no vive el tiempo. */
+    val isEgg: Boolean get() = hatchesAt != null
+
     /**
      * Biomas donde vive la mascota, según su especie. Se calcula (no se guarda) para que
      * cambiar el mapeo especie -> biomas actualice también las partidas guardadas.
@@ -53,6 +67,14 @@ data class PetEntity(
             progression = PetProgressionEntity.forSpecies(species),
             biome = biome,
         )
+
+        /**
+         * Un huevo puesto por una pareja de [parents] en [biome]: eclosiona en [hatchesAt] en un
+         * polluelo que crecerá a [parents]. [id] debe ser único en la partida.
+         */
+        fun egg(name: String, parents: PetSpecies, biome: Biome, now: Long, hatchesAt: Long, id: String, tier: Int = 1) =
+            newborn(name, PetSpecies.chick, now, id = id, biome = biome)
+                .copy(destinedSpecies = parents, hatchesAt = hatchesAt, tier = tier)
 
         /** Un polluelo recién nacido en [biome]; [id] debe ser único en la partida. */
         fun hatch(name: String, biome: Biome, now: Long, id: String) =

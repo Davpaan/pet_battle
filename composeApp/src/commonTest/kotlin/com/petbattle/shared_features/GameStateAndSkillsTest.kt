@@ -2,12 +2,16 @@ package com.petbattle.shared_features
 
 import com.petbattle.core.persistence.InMemoryKeyValueStore
 import com.petbattle.core.time.DayCycle
+import com.petbattle.shared_features.pet_combat.domain.PetCombatBalance
 import com.petbattle.shared_features.pet_combat.domain.PetCombatStatsRules
 import com.petbattle.core.time.DayPhase
 import com.petbattle.shared_features.biomes.domain.Biome
 import com.petbattle.shared_features.pet_food.domain.Food
 import com.petbattle.shared_features.pet_status.domain.FeedResult
+import com.petbattle.shared_features.pet_status.domain.BreedingRules
 import com.petbattle.shared_features.pet_status.domain.GrowthRules
+import com.petbattle.shared_features.pet_status.domain.LifeEvent
+import com.petbattle.shared_features.pet_status.domain.TierRules
 import com.petbattle.shared_features.pet_status.domain.PetDerivedNeeds
 import com.petbattle.shared_features.pet_status.domain.PetNeedsBalance
 import com.petbattle.shared_features.pet_status.domain.entities.PetEntity
@@ -97,19 +101,20 @@ class GameStateAndSkillsTest {
         assertEquals(asleep to null, PetNeedsRules.offerFood(asleep, Food.seeds, diet))
     }
 
-    @Test fun theDayHasMorningEveningAndNightByLocalTime() {
+    @Test fun theDayHasFourSixHourPhasesByLocalTime() {
         val hour = 3_600_000L
         val midnightUtc = 1_767_225_600_000L // 2026-01-01T00:00Z
         assertEquals(0, DayCycle.hourOf(midnightUtc, 0))
         assertEquals(1, DayCycle.hourOf(midnightUtc, 1 * 3_600_000)) // UTC+1
         assertEquals(23, DayCycle.hourOf(midnightUtc, -1 * 3_600_000)) // UTC-1
         assertEquals(14, DayCycle.hourOf(midnightUtc + 14 * hour, 0))
-        assertEquals(DayPhase.night, DayCycle.phaseOfHour(0))
-        assertEquals(DayPhase.night, DayCycle.phaseOfHour(5))
-        assertEquals(DayPhase.morning, DayCycle.phaseOfHour(6))
-        assertEquals(DayPhase.morning, DayCycle.phaseOfHour(17))
-        assertEquals(DayPhase.evening, DayCycle.phaseOfHour(18))
-        assertEquals(DayPhase.evening, DayCycle.phaseOfHour(23))
+        val expected = mapOf(
+            0 to DayPhase.night, 5 to DayPhase.night,
+            6 to DayPhase.morning, 11 to DayPhase.morning,
+            12 to DayPhase.midday, 17 to DayPhase.midday,
+            18 to DayPhase.evening, 23 to DayPhase.evening,
+        )
+        for ((h, phase) in expected) assertEquals(phase, DayCycle.phaseOfHour(h), "hora $h")
     }
 
     @Test fun atNightPetsRestWithoutFallingAsleep() {
@@ -178,6 +183,17 @@ class GameStateAndSkillsTest {
         val lonely = PetCombatStatsRules.statsFor(pet { copy(happiness = 70.0, hygiene = 80.0) }, socialization = 0.0)
         assertEquals((70.0 + 0 + 80) / 3, lonely.confidence, 1e-9)
         assertEquals(lonely.confidence / 100, lonely.hitChance, 1e-9)
+        // Rango: fijo por especie, no depende de las necesidades.
+        assertEquals(full.range, lonely.range)
+        assertEquals(PetCombatBalance.range(PetSpecies.crow), full.range)
+    }
+
+    @Test fun rangeGrowsWithTheSizeOfTheSpecies() {
+        val r = { s: PetSpecies -> PetCombatBalance.range(s) }
+        assertTrue(r(PetSpecies.crow) > r(PetSpecies.cardinal))
+        assertTrue(r(PetSpecies.cardinal) > r(PetSpecies.hummingbird))
+        assertEquals(r(PetSpecies.crow), PetCombatStatsRules.maxRange)
+        assertEquals(PetSpecies.hummingbird, PetSpecies.adults.minBy { r(it) })
     }
 
     @Test fun combatCleaningAndFoodMoveTheirOwnNeeds() {
@@ -419,6 +435,114 @@ class GameStateAndSkillsTest {
         val before = r.byId(kai)!!.needs
         r = GameRules.switchTo(r, kai)
         assertEquals(before, r.active!!.needs)
+    }
+
+    /** Un generador "aleatorio" que siempre saca [value] en nextDouble (0 = siempre acierta). */
+    private fun fixedRandom(allBits: Boolean) = object : Random() {
+        override fun nextBits(bitCount: Int) = if (allBits) -1 ushr (32 - bitCount) else 0
+    }
+
+    /** Dos adultos de [species] en [biome], con todas sus necesidades al máximo. */
+    private fun happyPair(species: PetSpecies = PetSpecies.crow, biome: Biome = Biome.grassland): GameStateEntity {
+        val full = PetNeedsEntity(100.0, 100.0, 100.0, 100.0, digestion = 100.0, beakAndClaws = 100.0, plumage = 100.0, lastUpdatedAt = now)
+        val pets = listOf("Kai", "Luz").map { PetEntity.newborn(it, species, now, id = it, biome = biome).copy(needs = full) }
+        return GameStateEntity.newGame.copy(pets = pets, activeId = "Kai", currentBiome = biome, unlockedBiomes = Biome.entries.toList())
+    }
+
+    @Test fun aSatisfiedPairOfTheSameSpeciesMayLayAnEggOncePerDay() {
+        val g = happyPair()
+        assertTrue(g.pets.all { PetDerivedNeeds.satisfaction(it, g) > BreedingRules.SATISFACTION_TO_BREED })
+        // Hoy (día 1) sale el 50%: ponen un huevo destinado a su especie.
+        val (laid, events) = BreedingRules.step(g, now, today = 1, random = fixedRandom(false))
+        val egg = laid.pets.single { it.isEgg }
+        assertEquals(listOf<LifeEvent>(LifeEvent.EggLaid("Kai" to "Luz", egg.name)), events)
+        assertEquals("Cría 1", egg.name)
+        assertEquals(PetSpecies.crow, egg.destinedSpecies)
+        assertEquals(now + BreedingRules.EGG_HATCH_MS, egg.hatchesAt)
+        assertEquals(Biome.grassland, egg.biome)
+        // El mismo día no lo vuelven a intentar.
+        val (again, none) = BreedingRules.step(laid, now + 60_000, today = 1, random = fixedRandom(false))
+        assertTrue(none.isEmpty())
+        assertEquals(1, again.pets.count { it.isEgg })
+        // Al día siguiente, sí (y el primer huevo, con más de 8 h, ya ha eclosionado).
+        val (tomorrow, next) = BreedingRules.step(again, now + 86_400_000, today = 2, random = fixedRandom(false))
+        assertEquals(listOf<LifeEvent>(LifeEvent.Hatched("Cría 1"), LifeEvent.EggLaid("Kai" to "Luz", "Cría 2")), next)
+        assertEquals(1, tomorrow.pets.count { it.isEgg })
+        assertEquals(4, tomorrow.pets.size)
+        // Si no sale el 50%, no hay huevo, pero ya gastaron el intento de hoy.
+        val (unlucky, _) = BreedingRules.step(g, now, today = 1, random = fixedRandom(true))
+        assertTrue(unlucky.pets.none { it.isEgg })
+        assertTrue(unlucky.pets.all { it.lastBreedingDay == 1L })
+    }
+
+    @Test fun noEggWithoutSatisfactionOrWithoutLivingTogether() {
+        // Uno de los dos por debajo del 90%: ni lo intentan.
+        val g = happyPair()
+        val sad = g.replace(g.byId("Luz")!!.let { it.copy(needs = it.needs.copy(satiety = 0.0, happiness = 0.0)) })
+        val (r1, e1) = BreedingRules.step(sad, now, today = 1, random = fixedRandom(false))
+        assertTrue(e1.isEmpty())
+        assertTrue(r1.pets.all { it.lastBreedingDay == -1L })
+        // En biomas distintos no forman pareja.
+        val apart = g.replace(g.byId("Luz")!!.copy(biome = Biome.coast))
+        assertTrue(BreedingRules.step(apart, now, today = 1, random = fixedRandom(false)).second.isEmpty())
+        // Especies distintas, tampoco.
+        val mixed = g.replace(g.byId("Luz")!!.copy(species = PetSpecies.magpie))
+        assertTrue(BreedingRules.step(mixed, now, today = 1, random = fixedRandom(false)).second.isEmpty())
+    }
+
+    @Test fun eggsHatchAfterEightHoursIntoChicksThatGrowIntoTheirParentsSpecies() {
+        val (laid, _) = BreedingRules.step(happyPair(), now, today = 1, random = fixedRandom(false))
+        val eggId = laid.pets.single { it.isEgg }.id
+        // Un huevo no se puede seleccionar.
+        assertEquals(laid, GameRules.switchTo(laid, eggId))
+        // Aún no.
+        val (early, noEvents) = BreedingRules.step(laid, now + BreedingRules.EGG_HATCH_MS - 1, today = 1, random = fixedRandom(true))
+        assertTrue(noEvents.isEmpty())
+        assertTrue(early.byId(eggId)!!.isEgg)
+        // A las 8 horas eclosiona en un polluelo.
+        val hatchTime = now + BreedingRules.EGG_HATCH_MS
+        val (hatched, events) = BreedingRules.step(laid, hatchTime, today = 1, random = fixedRandom(true))
+        val chick = hatched.byId(eggId)!!
+        assertEquals(listOf<LifeEvent>(LifeEvent.Hatched("Cría 1")), events)
+        assertFalse(chick.isEgg)
+        assertTrue(chick.species.isChick)
+        // Coma lo que coma (néctar, que un cuervo ni come), crece a cuervo como sus padres.
+        var r = GameRules.switchTo(hatched, eggId)
+        repeat(GrowthRules.MEALS_TO_GROW) {
+            r = GameRules.updateActiveNeeds(r) { it.copy(satiety = 0.0) }
+            r = GameRules.feedActive(r, Food.nectar, Random(7)).first
+        }
+        assertEquals(PetSpecies.crow, r.byId(eggId)!!.species)
+        assertNull(r.byId(eggId)!!.destinedSpecies)
+    }
+
+    @Test fun purchasedEggsAreOneStarOrRarelyTwo() {
+        assertEquals(1, TierRules.purchased(fixedRandom(true))) // tirada alta: 1 estrella
+        assertEquals(2, TierRules.purchased(fixedRandom(false))) // tirada baja (< 10%): 2 estrellas
+        val tiers = (0 until 2000).map { TierRules.purchased(Random(it)) }
+        assertEquals(setOf(1, 2), tiers.toSet())
+        val twoStars = tiers.count { it == 2 } / 2000.0
+        assertTrue(twoStars in 0.06..0.14, "2 estrellas: $twoStars")
+        // La compra le da su tier al polluelo.
+        val bought = GameRules.hatch(GameStateEntity.newGame, "Kai", now, fixedRandom(false))
+        assertEquals(2, bought.active!!.tier)
+    }
+
+    @Test fun childTierFollowsItsParents() {
+        // Mismo tier: 20% de subir una estrella (sin pasar de 5); si no, el de los padres.
+        assertEquals(3, TierRules.child(2, 2, fixedRandom(false)))
+        assertEquals(2, TierRules.child(2, 2, fixedRandom(true)))
+        assertEquals(TierRules.MAX_TIER, TierRules.child(5, 5, fixedRandom(false)))
+        val upgrades = (0 until 2000).count { TierRules.child(3, 3, Random(it)) == 4 } / 2000.0
+        assertTrue(upgrades in 0.16..0.24, "suben: $upgrades")
+        // Distinto tier: cualquiera entre el más bajo y el más alto, por igual.
+        val mixed = (0 until 3000).map { TierRules.child(2, 4, Random(it)) }
+        assertEquals(setOf(2, 3, 4), mixed.toSet())
+        for (t in 2..4) assertTrue(mixed.count { it == t } / 3000.0 in 0.28..0.39, "tier $t")
+        // El huevo de una pareja hereda su tier.
+        val pair = happyPair().let { g -> g.copy(pets = g.pets.map { it.copy(tier = 4) }) }
+        val egg = BreedingRules.step(pair, now, today = 1, random = fixedRandom(false)).first.pets.single { it.isEgg }
+        assertEquals(5, egg.tier)
     }
 
     @Test fun repositoryRoundTrips() = runTest {

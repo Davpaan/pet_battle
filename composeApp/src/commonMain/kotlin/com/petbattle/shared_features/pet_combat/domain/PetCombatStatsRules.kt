@@ -1,5 +1,6 @@
 package com.petbattle.shared_features.pet_combat.domain
 
+import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import com.petbattle.shared_features.pet_status.domain.PetDerivedNeeds
 import com.petbattle.shared_features.pet_status.domain.PetNeedsBalance
 import com.petbattle.shared_features.pet_status.domain.entities.PetEntity
@@ -16,6 +17,31 @@ object PetCombatBalance {
     const val BASE_FIRE_INTERVAL = 0.7
 
     const val MAX_CONFIDENCE = 100.0
+
+    /** Alcance de referencia (px de mapa); cada especie tiene el suyo (ver [range]). */
+    const val DEFAULT_RANGE = 300.0
+
+    /**
+     * Alcance de cada especie, según su tamaño (longitud aproximada del pájaro real): las
+     * grandes llegan más lejos y las pequeñas menos.
+     */
+    fun range(species: PetSpecies): Double = when (species) {
+        PetSpecies.crow -> 380.0 // ~45 cm
+        PetSpecies.magpie -> 370.0 // ~45 cm (con la cola)
+        PetSpecies.kestrel -> 350.0 // ~34 cm
+        PetSpecies.blueJay -> 340.0 // ~34 cm
+        PetSpecies.whiteDove -> 330.0 // ~30 cm
+        PetSpecies.beeEater -> 310.0 // ~28 cm
+        PetSpecies.cardinal -> 290.0 // ~22 cm
+        PetSpecies.woodThrush -> 285.0 // ~20 cm
+        PetSpecies.chucao -> 280.0 // ~19 cm
+        PetSpecies.cedarWaxwing -> 270.0 // ~17 cm
+        PetSpecies.redRobin -> 260.0 // ~14 cm
+        PetSpecies.houseFinch -> 255.0 // ~14 cm
+        PetSpecies.chickadee -> 245.0 // ~12 cm
+        PetSpecies.hummingbird -> 230.0 // ~9 cm
+        PetSpecies.chick -> 220.0 // no combate
+    }
 }
 
 /**
@@ -28,12 +54,16 @@ object PetCombatBalance {
  * | velocidad de ataque | descanso (energía), digestión, clima      |
  * | confianza (acierto) | diversión, social, higiene                |
  *
- * Además, sin energía está agotada y no ataca (si no, podría disparar sin fin).
+ * Además, sin energía está agotada y no ataca (si no, podría disparar sin fin). El rango
+ * (alcance) no depende de las necesidades: es fijo por especie (PetCombatBalance.range).
  */
 object PetCombatStatsRules {
     /** Daño total de una mascota de nivel [level] (con todas sus necesidades al máximo). */
     fun maxDamage(level: Int) =
         if (level <= 0) PetCombatBalance.LEVEL_ZERO_DAMAGE else PetCombatBalance.DAMAGE_PER_LEVEL * level
+
+    /** El mayor alcance de todas las especies (referencia para comparar rangos). */
+    val maxRange: Double get() = PetSpecies.entries.maxOf { PetCombatBalance.range(it) }
 
     /** Ataques por segundo totales (de momento no depende del nivel). */
     val maxAttacksPerSecond get() = 1.0 / PetCombatBalance.BASE_FIRE_INTERVAL
@@ -50,6 +80,7 @@ object PetCombatStatsRules {
             attacksPerSecond = maxAttacksPerSecond * speedFactor,
             maxAttacksPerSecond = maxAttacksPerSecond,
             confidence = confidence(pet, socialization),
+            range = PetCombatBalance.range(pet.species),
         )
     }
 

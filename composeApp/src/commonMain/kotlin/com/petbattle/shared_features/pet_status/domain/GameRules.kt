@@ -58,8 +58,11 @@ object GameRules {
     /** Hace falta estar en un bioma y tener oro para el huevo. */
     fun canHatch(gameState: GameStateEntity) = gameState.currentBiome != null && goldMissingForEgg(gameState) == 0
 
-    /** Compra un huevo y añade el polluelo al bioma actual, activo. Quien llama debe validar antes. */
-    fun hatch(gameState: GameStateEntity, name: String, now: Long): GameStateEntity {
+    /**
+     * Compra un huevo y añade el polluelo al bioma actual, activo, con su rareza sorteada
+     * (TierRules.purchased). Quien llama debe validar antes.
+     */
+    fun hatch(gameState: GameStateEntity, name: String, now: Long, random: Random = Random.Default): GameStateEntity {
         val biome = requireNotNull(gameState.currentBiome) { "no biome chosen" }
         require(canHatch(gameState)) { "not enough gold" }
         val error = validateName(gameState, name)
@@ -67,6 +70,7 @@ object GameRules {
         // El número de mascotas evita ids repetidos si se crían dos en el mismo milisegundo.
         val id = "chick-$now-${gameState.pets.size}"
         val pet = PetEntity.hatch(name = normalizeName(name), biome = biome, now = now, id = id)
+            .copy(tier = TierRules.purchased(random))
         return gameState.copy(
             pets = gameState.pets + pet,
             activeId = pet.id,
@@ -78,7 +82,7 @@ object GameRules {
     /** Viaja a [biome] (si está comprado): se activa su primera mascota, o ninguna si está vacío. */
     fun enterBiome(gameState: GameStateEntity, biome: Biome): GameStateEntity {
         if (biome == gameState.currentBiome || !gameState.isUnlocked(biome)) return gameState
-        val first = gameState.petsIn(biome).firstOrNull()
+        val first = gameState.petsIn(biome).firstOrNull { !it.isEgg }
         val moved = gameState.copy(currentBiome = biome, activeId = null)
         return if (first == null) moved else switchTo(moved, first.id)
     }
@@ -91,14 +95,15 @@ object GameRules {
         val pet = gameState.byId(petId) ?: return gameState
         val rest = gameState.copy(pets = gameState.pets - pet)
         if (petId != gameState.activeId) return rest
-        val next = rest.petsIn(pet.biome).firstOrNull() ?: return rest.copy(activeId = null)
+        val next = rest.petsIn(pet.biome).firstOrNull { !it.isEgg } ?: return rest.copy(activeId = null)
         return switchTo(rest.copy(activeId = null), next.id)
     }
 
     /** Selecciona [petId] (y viaja a su bioma). Su tiempo ya corría: no se toca. */
     fun switchTo(gameState: GameStateEntity, petId: String): GameStateEntity {
         val pet = gameState.byId(petId) ?: return gameState
-        if (petId == gameState.activeId) return gameState
+        // Los huevos no se pueden seleccionar.
+        if (petId == gameState.activeId || pet.isEgg) return gameState
         return gameState.copy(activeId = petId, currentBiome = pet.biome)
     }
 
@@ -150,7 +155,9 @@ object GameRules {
      */
     fun advanceAll(gameState: GameStateEntity, now: Long, isNight: (Long) -> Boolean = { false }) =
         gameState.copy(pets = gameState.pets.map { pet ->
-            pet.copy(needs = PetNeedsRules.advanceTo(pet.needs, now, isNight = isNight))
+            // Un huevo aún no vive: sus necesidades empiezan al eclosionar.
+            if (pet.isEgg) pet.copy(needs = pet.needs.copy(lastUpdatedAt = now))
+            else pet.copy(needs = PetNeedsRules.advanceTo(pet.needs, now, isNight = isNight))
         })
 
     /** La mascota [petId] dispara en combate: se cansa y se le afilan el pico y las garras. */

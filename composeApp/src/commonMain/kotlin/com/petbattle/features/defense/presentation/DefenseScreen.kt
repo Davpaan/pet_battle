@@ -86,7 +86,7 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
- * Partida de tower defense con las mascotas adultas del bioma actual. El botón de salir
+ * Partida de tower defense con todas las mascotas adultas, de cualquier bioma. El botón de salir
  * siempre está disponible. La XP y el
  * cansancio del combate van directamente a [PetController], que los guarda solo.
  */
@@ -95,8 +95,8 @@ fun DefenseScreen(controller: PetController, onExit: () -> Unit, map: DefenseMap
     PlatformBackHandler(onExit)
 
     val gameState by controller.gameState.collectAsState()
-    // Solo combaten los adultos del bioma actual: los polluelos aún no saben luchar.
-    val pets = gameState?.biomePets.orEmpty().filter { !it.species.isChick }
+    // Combaten todos los adultos, vivan en el bioma que vivan: los polluelos aún no saben luchar.
+    val pets = gameState?.pets.orEmpty().filter { !it.species.isChick }
     val game = remember {
         DefenseGame(
             map = map,

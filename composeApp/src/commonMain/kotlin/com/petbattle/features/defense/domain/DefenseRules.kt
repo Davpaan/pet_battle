@@ -17,9 +17,8 @@ object DefenseBalance {
     const val ENEMY_LEVEL_STEP_SECONDS = 20.0
     const val LIVES = 10
 
-    // Mascotas. El alcance es constante; daño, velocidad y confianza (acierto) son sus stats
-    // de combate (ver PetCombatStatsRules).
-    const val PET_RANGE = 300.0
+    // Mascotas. Daño, velocidad, confianza (acierto) y rango (alcance) son sus stats de
+    // combate (ver PetCombatStatsRules).
     const val PROJECTILE_SPEED = 650.0
 
     /** Huella en el suelo que debe estar íntegramente sobre hierba. */

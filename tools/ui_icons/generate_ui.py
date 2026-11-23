@@ -376,6 +376,14 @@ def combat_speed(c):
     detail(c, stroke([(44, 66), (76, 28)], 2.2), BLUE)
 
 
+def combat_range(c):
+    # Diana: alcance.
+    paint(c, ellipse(50, 50, 40, 40), WHITE)
+    paint(c, ellipse(50, 50, 30, 30), RED, highlight=False)
+    paint(c, ellipse(50, 50, 20, 20), WHITE, highlight=False)
+    paint(c, ellipse(50, 50, 9, 9), RED, line=2.2, highlight=False)
+
+
 # Elementos y tipos.
 def element_fire(c):
     outer = union(ellipse(50, 66, 28, 26), poly((24, 60), (34, 30), (44, 44), (52, 8), (66, 40), (72, 28), (78, 62)))
@@ -478,6 +486,43 @@ def food_carrion(c):
     detail(c, ellipse(62, 34, 9, 6), (236, 150, 140))
 
 
+# Rareza (tier): escudo de nivel de cada color y estrella.
+TIER_COLORS = {
+    1: ((150, 158, 170), (196, 204, 214)),  # común: gris
+    2: ((80, 170, 72), (150, 216, 120)),  # poco común: verde
+    3: ((60, 128, 222), (130, 186, 245)),  # raro: azul
+    4: ((150, 96, 214), (186, 140, 240)),  # épico: morado
+    5: ((232, 168, 30), (255, 220, 110)),  # legendario: dorado
+}
+
+
+def tier_shield(tier):
+    outer, inner = TIER_COLORS[tier]
+
+    def draw(c):
+        paint(c, poly((50, 6), (88, 18), (84, 58), (50, 94), (16, 58), (12, 18)), outer)
+        paint(c, poly((50, 16), (78, 25), (75, 56), (50, 84), (25, 56), (22, 25)), inner, gradient=0.2, line=2.2)
+    return draw
+
+
+def star_icon(c):
+    paint(c, star(50, 52, 42, 19), GOLD)
+    detail(c, ellipse(40, 40, 6, 4), WHITE, 0.6)
+
+
+# Sprites de escena.
+def pet_egg(c):
+    # Huevo de pájaro (azul claro con motas) en un nido: lo que ponen las parejas.
+    paint(c, ellipse(50, 80, 40, 14), WOOD_DARK)
+    paint(c, ellipse(50, 52, 24, 31), (196, 228, 236))
+    for x, y, r in ((42, 40, 3.2), (58, 52, 4.2), (46, 62, 2.6), (60, 36, 2.2), (38, 54, 2.2)):
+        detail(c, ellipse(x, y, r, r * 0.8), (96, 120, 110))
+    nest_front = minus(ellipse(50, 82, 40, 14), ellipse(50, 72, 30, 9))
+    paint(c, nest_front, WOOD)
+    for x0, x1, y in ((16, 42, 86), (38, 66, 90), (56, 84, 84)):
+        detail(c, stroke([(x0, y), (x1, y - 3)], 1.8), WOOD_DARK)
+
+
 ICONS = {
     "coin": coin, "egg": egg, "biome": biome, "menu": menu, "level": level,
     "feed": feed, "sleep": sleep, "wake": wake, "clean": clean, "defend": defend,
@@ -485,13 +530,14 @@ ICONS = {
     "stat_hunger": stat_hunger, "stat_energy": stat_energy, "stat_fun": stat_fun,
     "stat_hygiene": stat_hygiene, "stat_social": stat_social, "stat_climate": stat_climate,
     "stat_plumage": stat_plumage, "stat_digestion": stat_digestion, "stat_beak": stat_beak,
-    "stat_confidence": stat_trust, "info": info, "combat_damage": combat_damage, "combat_speed": combat_speed,
+    "stat_confidence": stat_trust, "info": info, "combat_damage": combat_damage, "combat_speed": combat_speed, "combat_range": combat_range,
     "element_fire": element_fire, "element_air": element_air, "element_water": element_water,
     "element_earth": element_earth, "type_light": type_light, "type_darkness": type_darkness,
     "type_elemental": type_elemental,
     "food_seeds": food_seeds, "food_nuts": food_nuts, "food_fruit": food_fruit,
     "food_insects": food_insects, "food_worms": food_worms, "food_nectar": food_nectar,
-    "food_carrion": food_carrion,
+    "food_carrion": food_carrion, "pet_egg": pet_egg, "star": star_icon,
+    **{f"tier_{t}": tier_shield(t) for t in TIER_COLORS},
 }
 
 
@@ -505,8 +551,10 @@ def main():
     out = sys.argv[1]
     os.makedirs(out, exist_ok=True)
     for name in sys.argv[2:] or list(ICONS):
-        build(name).save(os.path.join(out, f"ui_{name}.png"), optimize=True)
-        print("ui_" + name)
+        # Los sprites de escena ("pet_*") conservan su nombre; el resto llevan "ui_".
+        file = name if name.startswith("pet_") else f"ui_{name}"
+        build(name).save(os.path.join(out, f"{file}.png"), optimize=True)
+        print(file)
 
 
 if __name__ == "__main__":

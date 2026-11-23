@@ -6,7 +6,9 @@ import com.petbattle.core.time.DayCycle
 import com.petbattle.core.time.DayPhase
 import com.petbattle.shared_features.biomes.domain.Biome
 import com.petbattle.shared_features.pet_food.domain.Food
+import com.petbattle.shared_features.pet_status.domain.BreedingRules
 import com.petbattle.shared_features.pet_status.domain.FeedResult
+import com.petbattle.shared_features.pet_status.domain.LifeEvent
 import com.petbattle.shared_features.pet_status.domain.PetNameError
 import com.petbattle.shared_features.pet_status.domain.PetRepository
 import com.petbattle.shared_features.pet_status.domain.PetNeedsRules
@@ -16,7 +18,10 @@ import com.petbattle.shared_features.pet_status.domain.entities.PetNeedsEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
@@ -39,6 +44,8 @@ class PetController(
     private val random: Random = Random.Default,
     /** Momento del día de un instante (hora local; sustituible en tests). */
     private val dayPhaseAt: (Long) -> DayPhase = DayCycle::phaseAt,
+    /** Día (fecha local) de un instante, para la cría "una vez al día" (sustituible en tests). */
+    private val dayAt: (Long) -> Long = DayCycle::dayAt,
 ) {
     /** Solo de noche descansan solas. */
     private val isNightAt: (Long) -> Boolean = { dayPhaseAt(it) == DayPhase.night }
@@ -51,6 +58,11 @@ class PetController(
     val dayPhase: StateFlow<DayPhase> = _dayPhase.asStateFlow()
     val gameState: StateFlow<GameStateEntity?> = _gameState.asStateFlow()
 
+    private val _events = Channel<LifeEvent>(Channel.BUFFERED)
+
+    /** Lo que pasa en la vida de las mascotas (huevos puestos, eclosiones). Cada aviso se entrega una vez. */
+    val events: Flow<LifeEvent> = _events.receiveAsFlow()
+
     private var ticker: Job? = null
     private var pendingSave: Job? = null
 
@@ -62,10 +74,12 @@ class PetController(
             // Partida nueva: en la pradera, con el primer huevo gratis.
             _gameState.value = GameStateEntity.newGame
         } else {
-            // Puesta al día offline de todas las mascotas (el tiempo es común para todas).
-            val gameState = advanceAll(GameRules.migrate(saved), now)
+            // Puesta al día offline de todas las mascotas (el tiempo es común para todas), y los
+            // huevos que hayan eclosionado o las crías del día mientras la app estaba cerrada.
+            val (gameState, events) = live(advanceAll(GameRules.migrate(saved), now), now)
             repository.save(gameState)
             _gameState.value = gameState
+            events.forEach { _events.trySend(it) }
         }
         if (autoTick) startTicker()
     }
@@ -92,7 +106,7 @@ class PetController(
         if (!GameRules.canHatch(gameState)) return null
         GameRules.validateName(gameState, name)?.let { return it }
         val now = clock.nowMillis()
-        set(GameRules.hatch(advanceAll(gameState, now), name, now), saveNow = true)
+        set(GameRules.hatch(advanceAll(gameState, now), name, now, random), saveNow = true)
         return null
     }
 
@@ -190,8 +204,22 @@ class PetController(
         if (saveNow) flush() else scheduleSave()
     }
 
-    /** Los ticks ponen al día a todas las mascotas hasta "ahora" una vez por segundo. */
-    fun tick() = applyToActive({ it })
+    /**
+     * Los ticks, una vez por segundo, ponen al día a todas las mascotas hasta "ahora",
+     * eclosionan los huevos a los que les toca y hacen que las parejas intenten criar.
+     */
+    fun tick() {
+        val gameState = _gameState.value ?: return
+        val now = clock.nowMillis()
+        _dayPhase.value = dayPhaseAt(now)
+        val (next, events) = live(advanceAll(gameState, now), now)
+        set(next, saveNow = events.isNotEmpty())
+        events.forEach { _events.trySend(it) }
+    }
+
+    /** Eclosiones y crías del día (ver BreedingRules). */
+    private fun live(gameState: GameStateEntity, now: Long) =
+        BreedingRules.step(gameState, now, dayAt(now), random)
 
     private fun startTicker() {
         if (ticker != null) return

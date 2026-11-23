@@ -149,8 +149,9 @@ private fun DrawScope.drawDefender(d: Defender, game: DefenseGame, sprites: Defe
     val feet = d.position
     val chest = d.muzzle
     // Alcance.
-    drawCircle(Color(0x14FFFFFF), DefenseBalance.PET_RANGE.toFloat(), chest)
-    drawCircle(Color(0x55FFFFFF), DefenseBalance.PET_RANGE.toFloat(), chest, style = Stroke(2f))
+    // Alcance de su especie.
+    drawCircle(Color(0x14FFFFFF), d.range.toFloat(), chest)
+    drawCircle(Color(0x55FFFFFF), d.range.toFloat(), chest, style = Stroke(2f))
     // Sombra.
     drawOval(Color(0x40000000), Offset(feet.x - size * 0.25f, feet.y - 6f), Size(size * 0.5f, 12f))
 

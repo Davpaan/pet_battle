@@ -53,6 +53,7 @@ import com.petbattle.shared_features.pet_species.presentation.label
 import com.petbattle.shared_features.pet_status.application.PetController
 import com.petbattle.shared_features.pet_status.domain.FeedResult
 import com.petbattle.shared_features.pet_status.domain.GameRules
+import com.petbattle.shared_features.pet_status.domain.LifeEvent
 import com.petbattle.shared_features.pet_status.domain.PetDerivedNeeds
 import com.petbattle.shared_features.pet_status.domain.entities.PetEntity
 import kotlinx.coroutines.delay
@@ -83,6 +84,16 @@ fun PetScreen(controller: PetController, onDefend: () -> Unit) {
     var choosingFood by remember { mutableStateOf(false) }
     var confirmRelease by remember { mutableStateOf<PetEntity?>(null) }
     var feedback by remember { mutableStateOf<String?>(null) } // aviso breve (comida, compras...)
+
+    // Huevos puestos y eclosiones: se cuentan con el mismo aviso.
+    LaunchedEffect(controller) {
+        controller.events.collect { event ->
+            feedback = when (event) {
+                is LifeEvent.EggLaid -> "¡${event.parents.first} y ${event.parents.second} han puesto un huevo!"
+                is LifeEvent.Hatched -> "¡Ha nacido ${event.name}!"
+            }
+        }
+    }
 
     // El aviso desaparece solo al cabo de un rato.
     LaunchedEffect(feedback) {
@@ -142,6 +153,7 @@ fun PetScreen(controller: PetController, onDefend: () -> Unit) {
                 StatsPanel(
                     pet = pet,
                     socialization = social,
+                    satisfaction = PetDerivedNeeds.satisfaction(pet, current),
                     combat = PetCombatStatsRules.statsFor(pet, social),
                     onRelease = { confirmRelease = pet },
                     // Acaba por encima del botón del menú; si no cabe, hace scroll.

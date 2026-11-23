@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
@@ -46,12 +47,14 @@ import com.petbattle.shared_features.pet_species.domain.diet
 import com.petbattle.shared_features.pet_species.domain.isChick
 import com.petbattle.shared_features.pet_species.presentation.label
 import com.petbattle.shared_features.pet_status.domain.GrowthRules
+import com.petbattle.shared_features.pet_status.domain.TierRules
 import com.petbattle.shared_features.pet_status.domain.entities.PetEntity
 
 /**
  * Nivel de la mascota seleccionada (arriba en el centro): insignia con el número y barra de
  * experiencia (su nombre está en el panel de estados). Un polluelo muestra en su lugar el
- * huevo y cuánto le falta para crecer. La flechita de al lado despliega su ficha: especie,
+ * huevo y cuánto le falta para crecer. El escudo toma el color de su rareza (tier). La
+ * flechita de al lado despliega su ficha: especie, rareza (estrellas),
  * elemento, tipo, habilidad, bioma, biomas posibles y dieta.
  */
 @Composable
@@ -71,7 +74,8 @@ fun LevelBadge(pet: PetEntity, modifier: Modifier = Modifier) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(contentAlignment = Alignment.Center) {
-                GameIconImage(if (chick) GameIcon.Egg else GameIcon.Level, 50.dp)
+                // El escudo toma el color de su rareza (tier).
+                GameIconImage(if (chick) GameIcon.Egg else tierShield(pet.tier), 50.dp)
                 if (!chick) Text("${progression.level}", style = GameUi.text(20.sp), modifier = Modifier.offset(y = (-2).dp))
             }
             Column(Modifier.offset(x = (-6).dp)) {
@@ -98,15 +102,28 @@ private fun PetSheet(pet: PetEntity) {
     WoodPanel(Modifier.padding(top = 6.dp).width(300.dp).heightIn(max = 250.dp)) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 10.dp)) {
             SheetLine(null, "Especie", pet.species.label)
+            TierLine(pet.tier)
             if (pet.species.isChick) {
-                val favourites = pet.meals.filterValues { it > 0 && it == pet.meals.values.maxOrNull() }.keys
-                Text(
-                    "Aún no tiene elemento ni tipo: al crecer será una especie de su bioma que coma su comida favorita.",
-                    style = GameUi.text(12.sp, Color(0xFFF3E3C8)),
-                    modifier = Modifier.padding(vertical = 4.dp),
-                )
-                SheetLine(null, "Comidas", "${GrowthRules.mealsEaten(pet)} / ${GrowthRules.MEALS_TO_GROW}")
-                SheetLine(null, "Favorita", favourites.joinToString { it.label.lowercase() }.ifEmpty { "todavía ninguna" })
+                val destined = pet.destinedSpecies
+                if (destined != null) {
+                    // Hijo de una pareja: su especie ya está decidida, coma lo que coma.
+                    Text(
+                        "Nació de una pareja: aún no tiene elemento ni tipo, pero al crecer será como sus padres.",
+                        style = GameUi.text(12.sp, Color(0xFFF3E3C8)),
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                    SheetLine(null, "Crecerá a", destined.label)
+                    SheetLine(null, "Comidas", "${GrowthRules.mealsEaten(pet)} / ${GrowthRules.MEALS_TO_GROW}")
+                } else {
+                    val favourites = pet.meals.filterValues { it > 0 && it == pet.meals.values.maxOrNull() }.keys
+                    Text(
+                        "Aún no tiene elemento ni tipo: al crecer será una especie de su bioma que coma su comida favorita.",
+                        style = GameUi.text(12.sp, Color(0xFFF3E3C8)),
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                    SheetLine(null, "Comidas", "${GrowthRules.mealsEaten(pet)} / ${GrowthRules.MEALS_TO_GROW}")
+                    SheetLine(null, "Favorita", favourites.joinToString { it.label.lowercase() }.ifEmpty { "todavía ninguna" })
+                }
             } else {
                 val skills = pet.progression
                 val skill = PetSkillsCatalog.basicAttackFor(skills)
@@ -124,6 +141,42 @@ private fun PetSheet(pet: PetEntity) {
             }
         }
     }
+}
+
+/** Rareza: su nombre y las estrellas (doradas las que tiene, apagadas las que no). */
+@Composable
+private fun TierLine(tier: Int) {
+    Row(Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            buildAnnotatedString {
+                withStyle(SpanStyle(color = GameUi.Gold)) { append("Rareza: ") }
+                append(tierLabel(tier))
+            },
+            style = GameUi.text(13.sp),
+            modifier = Modifier.padding(end = 6.dp),
+        )
+        for (i in TierRules.MIN_TIER..TierRules.MAX_TIER) {
+            GameIconImage(GameIcon.Star, 18.dp, Modifier.alpha(if (i <= tier) 1f else 0.25f))
+        }
+    }
+}
+
+/** Nombre de cada rareza. */
+private fun tierLabel(tier: Int) = when (tier) {
+    1 -> "Común"
+    2 -> "Poco común"
+    3 -> "Raro"
+    4 -> "Épico"
+    else -> "Legendario"
+}
+
+/** Escudo del nivel del color de cada rareza. */
+private fun tierShield(tier: Int) = when (tier) {
+    1 -> GameIcon.Tier1
+    2 -> GameIcon.Tier2
+    3 -> GameIcon.Tier3
+    4 -> GameIcon.Tier4
+    else -> GameIcon.Tier5
 }
 
 /** Una línea de la ficha: icono opcional, título en dorado y valor. */

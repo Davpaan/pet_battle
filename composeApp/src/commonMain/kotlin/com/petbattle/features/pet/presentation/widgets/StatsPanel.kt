@@ -45,6 +45,7 @@ import com.petbattle.shared_features.pet_combat.domain.PetCombatBalance
 import com.petbattle.shared_features.pet_combat.domain.PetCombatStats
 import com.petbattle.shared_features.pet_combat.domain.PetCombatStatsRules
 import com.petbattle.shared_features.pet_species.presentation.label
+import com.petbattle.shared_features.pet_status.domain.BreedingRules
 import com.petbattle.shared_features.pet_status.domain.PetDerivedNeeds
 import com.petbattle.shared_features.pet_status.domain.PetNeedsBalance
 import com.petbattle.shared_features.pet_status.domain.entities.PetEntity
@@ -58,7 +59,7 @@ private enum class StatsTab { needs, combat }
  * pestañas:
  * - Necesidades: hambre, descanso, diversión y digestión; "Salud" (higiene, plumaje, pico y
  *   garras) y "Ambientales" (social y clima, que no dependen de la interacción).
- * - Combate: daño, velocidad y confianza, cada uno "actual / total".
+ * - Combate: daño, velocidad y confianza, cada uno "actual / total", y el rango (fijo por especie).
  * El botón "i" explica la pestaña abierta, y abajo está el botón de liberarla. Hace scroll si
  * no cabe. [socialization] y [combat] se calculan fuera (dependen del bioma).
  */
@@ -66,6 +67,8 @@ private enum class StatsTab { needs, combat }
 fun StatsPanel(
     pet: PetEntity,
     socialization: Double,
+    /** Satisfacción global (0..100): media de todas sus necesidades (PetDerivedNeeds.satisfaction). */
+    satisfaction: Double,
     combat: PetCombatStats,
     onRelease: () -> Unit,
     modifier: Modifier = Modifier,
@@ -97,6 +100,16 @@ fun StatsPanel(
             }
             if (expanded) {
                 Text(pet.species.label, style = GameUi.text(12.sp, Color(0xFFF3E3C8)))
+                // Por encima del umbral, con otra de su especie en el bioma, puede criar.
+                val canBreedNow = satisfaction > BreedingRules.SATISFACTION_TO_BREED
+                StatLine(
+                    GameIcon.Egg, "Satisfacción global", "${satisfaction.format(0)} %",
+                    (satisfaction / PetNeedsBalance.MAX_STAT).toFloat(), "Satisfacción global ${satisfaction.format(0)}%",
+                )
+                Text(
+                    if (canBreedNow) "Puede criar con otra de su especie" else "Cría con más de ${BreedingRules.SATISFACTION_TO_BREED.format(0)} %",
+                    style = GameUi.text(10.sp, if (canBreedNow) GameUi.Gold else Color(0xFFE8DCC8)),
+                )
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TabChip("Necesidades", tab == StatsTab.needs, { tab = StatsTab.needs }, Modifier.weight(1f))
@@ -128,6 +141,8 @@ fun StatsPanel(
                         CombatRow(GameIcon.Damage, "Daño", combat.damage, combat.maxDamage, decimals = 1)
                         CombatRow(GameIcon.Speed, "Velocidad", combat.attacksPerSecond, combat.maxAttacksPerSecond, decimals = 2, unit = " /s")
                         CombatRow(GameIcon.Confidence, "Confianza", combat.confidence, combat.maxConfidence, decimals = 0, unit = " %")
+                        // El rango es fijo por especie: la barra lo compara con la especie de más alcance.
+                        StatLine(GameIcon.Range, "Rango", combat.range.format(0), (combat.range / combat.maxRange).toFloat(), "Rango ${combat.range.format(0)}")
                         if (combat.exhausted) Text("¡Agotado! Necesita descansar", style = GameUi.text(12.sp, Color(0xFFFFB4A8)))
                     }
                 }
@@ -177,10 +192,11 @@ private fun NeedsInfo() {
 /** Cómo se calcula cada stat de combate. */
 @Composable
 private fun CombatInfo() {
-    Text("Actual = total × la media de sus tres necesidades:", style = GameUi.text(11.sp))
+    Text("Daño, velocidad y confianza: actual = total × la media de sus tres necesidades.", style = GameUi.text(11.sp))
     InfoLine(GameIcon.Damage, "Daño", "total ${PetCombatBalance.DAMAGE_PER_LEVEL.format(1)} × nivel (${PetCombatBalance.LEVEL_ZERO_DAMAGE.format(0)} en nivel 0) · hambre, plumaje, pico y garras")
     InfoLine(GameIcon.Speed, "Velocidad", "total ${PetCombatStatsRules.maxAttacksPerSecond.format(2)} ataques/s · descanso, digestión, clima")
     InfoLine(GameIcon.Confidence, "Confianza", "total ${PetCombatBalance.MAX_CONFIDENCE.format(0)} % de acierto · diversión, social, higiene")
+    InfoLine(GameIcon.Range, "Rango", "alcance fijo de su especie: cuanto más grande el pájaro, más lejos llega")
     Text("Sin descanso está agotado y no ataca.", style = GameUi.text(11.sp, Color(0xFFE8DCC8)), modifier = Modifier.padding(top = 4.dp))
 }
 

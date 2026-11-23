@@ -3,7 +3,7 @@
 Este documento recoge las reglas **tal y como están implementadas** en el código. Cada vez
 que cambie una regla o un valor de balance, hay que actualizarlo aquí (ver CLAUDE.md).
 
-Última actualización: 2026-11-22.
+Última actualización: 2026-11-23.
 
 Fuentes en el código:
 - Combate (modo defensa): `features/defense/domain/DefenseRules.kt` (`DefenseBalance`),
@@ -22,8 +22,8 @@ Fuentes en el código:
 
 ## 1. Desarrollo de una partida (modo defensa)
 
-1. **Preparación.** Se colocan en zonas de hierba las mascotas **adultas del bioma actual**
-   (los polluelos no combaten), cada una una sola vez. Tocar un pájaro colocado lo recoge
+1. **Preparación.** Se colocan en zonas de hierba las mascotas **adultas**, de **cualquier
+   bioma** (los polluelos no combaten), cada una una sola vez. Tocar un pájaro colocado lo recoge
    (se ve semitransparente) y el siguiente toque en hierba lo mueve. No aparecen enemigos.
 2. **"Empezar".** Se activa con al menos un pájaro colocado. Al pulsarlo desaparece la
    interfaz de colocación y empieza el combate; ya no se puede mover a nadie.
@@ -48,25 +48,47 @@ Los enemigos no atacan a las mascotas: solo caminan hacia la salida.
 
 ## 3. Stats de combate
 
-Cada mascota tiene tres **stats de combate**. No se guardan: se calculan en cada momento.
-Cada uno tiene un **total** (el máximo, según el nivel) y un valor **actual**, que es el total
-multiplicado por la **media de tres necesidades** (todas al 100% = rinde el total).
+Cada mascota tiene cuatro **stats de combate**. No se guardan: se calculan en cada momento.
+Daño, velocidad y confianza tienen un **total** (el máximo, según el nivel) y un valor
+**actual**, que es el total multiplicado por la **media de tres necesidades** (todas al 100%
+= rinde el total). El **rango** es fijo por especie.
 
 | Stat de combate | Total | Necesidades que lo suben o bajan |
 |---|---|---|
 | **Daño** (por golpe) | Nivel 0 → 1; nivel N → **1,2 × N** | Hambre (saciedad), plumaje, pico y garras |
 | **Velocidad** (ataques/s) | **1 / 0,7 s ≈ 1,43** (no depende del nivel) | Descanso (energía), digestión, clima |
 | **Confianza** (% de acierto) | **100** | Diversión, social, higiene |
+| **Rango** (alcance, px de mapa) | Fijo por especie, según su tamaño | — (no depende de las necesidades) |
+
+### Rango por especie (las grandes llegan más lejos)
+| Especie | Tamaño aprox. | Rango |
+|---|---|---|
+| Cuervo | 45 cm | 380 |
+| Urraca | 45 cm | 370 |
+| Cernícalo | 34 cm | 350 |
+| Arrendajo | 34 cm | 340 |
+| Paloma blanca | 30 cm | 330 |
+| Abejaruco | 28 cm | 310 |
+| Cardenal | 22 cm | 290 |
+| Zorzal | 20 cm | 285 |
+| Chucao | 19 cm | 280 |
+| Ampelis | 17 cm | 270 |
+| Petirrojo | 14 cm | 260 |
+| Pinzón | 14 cm | 255 |
+| Carbonero | 12 cm | 245 |
+| Colibrí | 9 cm | 230 |
+
 
 - Con el daño total, una mascota de nivel N mata de un golpe a enemigos de nivel ≤ N.
 - **Sin energía está agotada** y no ataca, aunque digestión y clima estén bien.
 - La confianza **es** la probabilidad de acertar cada disparo.
-- Las mascotas disparan solas a la babosa **más adelantada** dentro de su alcance (**300 px**).
+- Las mascotas disparan solas a la babosa **más adelantada** dentro de **su rango**.
 - **Cada disparo** gasta **1 de descanso**, resta **0,5** de higiene y de plumaje, y afila
   **+0,5** el pico y las garras (ver sección 5).
 
-En el juego, el panel de la mascota tiene una pestaña **Combate** con cada stat como
-"actual / total". Su botón **i** explica cómo se calcula cada stat; en la pestaña
+En el juego, el panel de la mascota tiene una pestaña **Combate** con daño, velocidad y
+confianza como "actual / total", y el rango (con una barra que lo compara con el de más
+alcance). Su botón **i** explica cómo se calcula cada stat; en la pestaña
 **Necesidades**, el mismo botón explica qué sube y qué baja cada necesidad.
 
 ### Habilidades por elemento (ataque básico, desde el nivel 0)
@@ -132,13 +154,56 @@ pestaña **Necesidades**
 final, **Ambientales**: social y clima), la pestaña **Combate**, el botón **i** y el botón
 de liberarla.
 
+## 5b. Cría
+
+- **Satisfacción global**: la media de **todas** las necesidades de la mascota (hambre,
+  descanso, diversión, digestión, higiene, plumaje, pico y garras, social y clima), en %. Se ve
+  en el panel de la mascota.
+- **Pareja**: dos adultos de la **misma especie** que viven en el **mismo bioma** (si hay más,
+  se emparejan de dos en dos; los huevos y los polluelos no cuentan).
+- **Una vez al día** (fecha local), la primera vez que **los dos** superan el **90 %** de
+  satisfacción, tienen un **50 %** de probabilidad de poner un **huevo**. Salga o no, ese día ya
+  no lo vuelven a intentar.
+- El **huevo** aparece en el bioma de los padres con un nombre automático ("Cría 1", "Cría 2"…).
+  No se puede seleccionar ni cuidar, y sus necesidades no corren hasta que nace. En su última
+  hora se balancea.
+- A las **8 horas** eclosiona en un **polluelo** con la **especie destinada** de sus padres:
+  crecerá a esa especie (a las 10 comidas, como cualquier polluelo) coma lo que coma.
+- Los huevos de la tienda siguen igual: sus polluelos crecen según la comida favorita.
+- Todo esto ocurre también con la app cerrada (al volver se ponen al día eclosiones y crías).
+
+## 5c. Rareza (tier)
+
+Cada mascota tiene una **rareza** de 1 a 5 estrellas, que colorea el escudo de su nivel y se
+ve (con sus estrellas) en su ficha. **De momento no tiene efecto en el juego.**
+
+| Estrellas | Rareza | Escudo |
+|---|---|---|
+| 1 | Común | Gris |
+| 2 | Poco común | Verde |
+| 3 | Raro | Azul |
+| 4 | Épico | Morado |
+| 5 | Legendario | Dorado |
+
+- **Huevos comprados**: 90 % de 1 estrella, 10 % de 2.
+- **Cría, padres del mismo tier**: 20 % de que la cría nazca con **una estrella más** (máximo 5);
+  si no, con el tier de sus padres.
+- **Cría, padres de distinto tier**: cualquiera entre el más bajo y el más alto, todos igual de
+  probables (2 + 4 → 2, 3 o 4).
+- Las mascotas de partidas anteriores tienen 1 estrella.
+
 ## 6. Ciclo del día (hora local)
 
-| Momento | Horas | Efecto |
-|---|---|---|
-| Mañana | 6:00–18:00 | Imagen normal; mascotas activas. |
-| Tarde | 18:00–24:00 | Filtro de atardecer sutil; mascotas activas. |
-| Noche | 0:00–6:00 | Pantalla oscura; todas **descansan** sin dormirse (recuperan energía, todo baja al 40%), y se puede seguir interactuando con ellas. |
+Cuatro franjas de 6 horas. Cada una cambia el aspecto del bioma con un filtro (una matriz de
+color sobre la imagen y un degradado de cielo y suelo); los pájaros reciben el filtro algo
+más suave. El cambio entre franjas es gradual.
+
+| Momento | Horas | Aspecto | Mascotas |
+|---|---|---|---|
+| Noche | 0:00–6:00 | Oscuro y azulado, poco color | **Descansan** sin dormirse (recuperan descanso, todo baja al 40%); se puede seguir interactuando con ellas |
+| Mañana | 6:00–12:00 | El alba: cielo rosa coral, luz dorada baja, algo de neblina | Activas |
+| Mediodía | 12:00–18:00 | La imagen tal cual | Activas |
+| Tarde | 18:00–24:00 | Atardecer anaranjado, suelo hacia el violeta | Activas |
 
 Dormir a una mascota a mano solo cambia su animación (y la hace descansar); dormida no come,
 no se limpia ni se deja mimar, y se despierta sola con el descanso lleno.

@@ -59,6 +59,12 @@ import com.petbattle.resources.ui_stat_plumage
 import com.petbattle.resources.ui_stat_social
 import com.petbattle.resources.ui_stat_confidence
 import com.petbattle.resources.ui_info
+import com.petbattle.resources.ui_star
+import com.petbattle.resources.ui_tier_1
+import com.petbattle.resources.ui_tier_2
+import com.petbattle.resources.ui_tier_3
+import com.petbattle.resources.ui_tier_4
+import com.petbattle.resources.ui_tier_5
 import com.petbattle.resources.ui_food_carrion
 import com.petbattle.resources.ui_food_fruit
 import com.petbattle.resources.ui_food_insects
@@ -75,6 +81,7 @@ import com.petbattle.resources.ui_type_elemental
 import com.petbattle.resources.ui_type_light
 import com.petbattle.resources.ui_combat_damage
 import com.petbattle.resources.ui_combat_speed
+import com.petbattle.resources.ui_combat_range
 import com.petbattle.resources.ui_wake
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
@@ -114,7 +121,7 @@ enum class GameIcon(val res: DrawableResource) {
     Hygiene(Res.drawable.ui_stat_hygiene), Social(Res.drawable.ui_stat_social), Climate(Res.drawable.ui_stat_climate),
     Plumage(Res.drawable.ui_stat_plumage), Digestion(Res.drawable.ui_stat_digestion), Beak(Res.drawable.ui_stat_beak),
     Confidence(Res.drawable.ui_stat_confidence), Info(Res.drawable.ui_info),
-    Damage(Res.drawable.ui_combat_damage), Speed(Res.drawable.ui_combat_speed),
+    Damage(Res.drawable.ui_combat_damage), Speed(Res.drawable.ui_combat_speed), Range(Res.drawable.ui_combat_range),
     Fire(Res.drawable.ui_element_fire), Air(Res.drawable.ui_element_air),
     Water(Res.drawable.ui_element_water), Earth(Res.drawable.ui_element_earth),
     Light(Res.drawable.ui_type_light), Darkness(Res.drawable.ui_type_darkness),
@@ -122,6 +129,9 @@ enum class GameIcon(val res: DrawableResource) {
     Seeds(Res.drawable.ui_food_seeds), Nuts(Res.drawable.ui_food_nuts), Fruit(Res.drawable.ui_food_fruit),
     Insects(Res.drawable.ui_food_insects), Worms(Res.drawable.ui_food_worms), Nectar(Res.drawable.ui_food_nectar),
     Carrion(Res.drawable.ui_food_carrion),
+    Star(Res.drawable.ui_star),
+    Tier1(Res.drawable.ui_tier_1), Tier2(Res.drawable.ui_tier_2), Tier3(Res.drawable.ui_tier_3),
+    Tier4(Res.drawable.ui_tier_4), Tier5(Res.drawable.ui_tier_5),
 }
 
 @Composable

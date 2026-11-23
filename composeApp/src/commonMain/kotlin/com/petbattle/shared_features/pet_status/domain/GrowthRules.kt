@@ -37,9 +37,13 @@ object GrowthRules {
         return matching.ifEmpty { inBiome }.random(random)
     }
 
-    /** El polluelo crece: nueva especie y sus rasgos de nivel 0. Conserva nombre, estado y bioma. */
+    /**
+     * El polluelo crece: nueva especie (la destinada si nació de una pareja; si no, la que decide
+     * su comida) y sus rasgos de nivel 0. Conserva nombre, estado y bioma.
+     */
     fun grow(pet: PetEntity, random: Random): PetEntity {
-        val adult = adultFor(pet.biome, pet.meals, random)
-        return pet.copy(species = adult, progression = PetProgressionEntity.forSpecies(adult), meals = emptyMap())
+        // Los hijos de una pareja crecen a la especie de sus padres, coman lo que coman.
+        val adult = pet.destinedSpecies ?: adultFor(pet.biome, pet.meals, random)
+        return pet.copy(species = adult, progression = PetProgressionEntity.forSpecies(adult), meals = emptyMap(), destinedSpecies = null)
     }
 }

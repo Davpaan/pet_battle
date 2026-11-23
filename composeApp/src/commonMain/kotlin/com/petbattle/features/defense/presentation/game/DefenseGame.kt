@@ -9,6 +9,7 @@ import com.petbattle.features.defense.domain.RoutePath
 import com.petbattle.features.defense.domain.entities.DefenseMapEntity
 import com.petbattle.features.defense.domain.entities.EnemyEntity
 import com.petbattle.features.defense.domain.entities.MapPoint
+import com.petbattle.shared_features.pet_combat.domain.PetCombatBalance
 import com.petbattle.shared_features.pet_combat.domain.PetCombatStats
 import com.petbattle.shared_features.pet_combat.domain.PetCombatStatsRules
 import com.petbattle.shared_features.pet_skills.domain.PetElement
@@ -351,9 +352,12 @@ class Defender(pet: PetEntity, val foot: Offset) {
         )
     }
 
-    /** El enemigo más cercano a la salida, dentro del alcance. */
+    /** Alcance de su especie (px de mapa). */
+    val range get() = PetCombatBalance.range(pet.species)
+
+    /** El enemigo más cercano a la salida, dentro de su alcance. */
     private fun pickTarget(game: DefenseGame): Enemy? {
-        val range2 = DefenseBalance.PET_RANGE * DefenseBalance.PET_RANGE
+        val range2 = range * range
         val from = muzzle
         return game.enemies
             .filter { it.alive && (it.position - from).getDistanceSquared() <= range2 }
