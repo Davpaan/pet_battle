@@ -4,6 +4,9 @@ import com.petbattle.resources.Res
 import com.petbattle.resources.biome_coast
 import com.petbattle.resources.biome_conifer_forest
 import com.petbattle.resources.biome_grassland
+import com.petbattle.resources.biome_grassland_hills
+import com.petbattle.resources.biome_grassland_sky
+import com.petbattle.resources.biome_grassland_terrain
 import com.petbattle.resources.biome_highlands
 import com.petbattle.resources.biome_meadow
 import com.petbattle.resources.biome_mountain
@@ -35,4 +38,25 @@ val Biome.background: DrawableResource
         Biome.tundra -> Res.drawable.biome_tundra
         Biome.highlands -> Res.drawable.biome_highlands
         Biome.coast -> Res.drawable.biome_coast
+    }
+
+/**
+ * Fondo partido en capas para el efecto parallax, de atrás adelante: [sky] (cielo y nubes),
+ * [back] (elementos de fondo, como las colinas) y [terrain] (el suelo, que no se mueve).
+ */
+class BiomeLayers(
+    val sky: DrawableResource,
+    val back: DrawableResource,
+    val terrain: DrawableResource,
+)
+
+/** Capas del fondo si el bioma las tiene; si no, se dibuja [background] entero. */
+val Biome.backgroundLayers: BiomeLayers?
+    get() = when (this) {
+        Biome.grassland -> BiomeLayers(
+            sky = Res.drawable.biome_grassland_sky,
+            back = Res.drawable.biome_grassland_hills,
+            terrain = Res.drawable.biome_grassland_terrain,
+        )
+        else -> null
     }
