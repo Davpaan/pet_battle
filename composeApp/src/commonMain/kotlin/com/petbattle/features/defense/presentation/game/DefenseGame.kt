@@ -8,6 +8,7 @@ import com.petbattle.features.defense.domain.DefenseRules
 import com.petbattle.features.defense.domain.RoutePath
 import com.petbattle.features.defense.domain.entities.DefenseMapEntity
 import com.petbattle.features.defense.domain.entities.EnemyEntity
+import com.petbattle.features.defense.domain.entities.EnemyKind
 import com.petbattle.features.defense.domain.entities.MapPoint
 import com.petbattle.shared_features.pet_combat.domain.PetCombatBalance
 import com.petbattle.shared_features.pet_combat.domain.PetCombatStats
@@ -19,6 +20,7 @@ import com.petbattle.shared_features.pet_status.domain.entities.PetEntity
 import kotlin.math.atan2
 import kotlin.math.floor
 import kotlin.math.max
+import kotlin.math.sin
 
 import kotlin.random.Random
 
@@ -235,7 +237,11 @@ class DefenseGame(
             spawnIn += DefenseBalance.SPAWN_INTERVAL
             val route = routes[nextRoute]
             nextRoute = (nextRoute + 1) % routes.size
-            enemies += Enemy(route, EnemyEntity.spawn(DefenseRules.enemyLevel(elapsed)), enemies.size)
+            val level = DefenseRules.enemyLevel(elapsed)
+            // El dado solo se tira cuando ya pueden salir mariposas, para no alterar antes la
+            // secuencia aleatoria de los disparos.
+            val kind = if (DefenseRules.butterfliesUnlocked(level)) DefenseRules.enemyKind(level, nextRandom()) else EnemyKind.worm
+            enemies += Enemy(route, EnemyEntity.spawn(level, kind), enemies.size)
         }
     }
 
@@ -243,7 +249,7 @@ class DefenseGame(
 
     internal fun enemyKilled(enemy: Enemy) {
         enemies.remove(enemy)
-        effects += AnimEffect.slimeDeath(enemy.position, enemy.facingRight)
+        effects += AnimEffect.enemyDeath(enemy.entity.kind, enemy.position, enemy.facingRight)
         kills++
         enemy.entity.lastHitBy?.let(onEnemyKilledBy)
     }
@@ -370,7 +376,7 @@ class Defender(pet: PetEntity, val foot: Offset) {
     }
 }
 
-/** Un slime arrastrándose por una ruta; su estado de juego vive en su [entity]. */
+/** Un enemigo (gusano o mariposa) recorriendo una ruta; su estado de juego vive en su [entity]. */
 class Enemy(val route: RoutePath, entity: EnemyEntity, spawnIndex: Int) {
     var entity: EnemyEntity = entity
         private set
@@ -396,8 +402,12 @@ class Enemy(val route: RoutePath, entity: EnemyEntity, spawnIndex: Int) {
     /** Cuánto ha avanzado por su ruta; las mascotas apuntan al más avanzado. */
     val progress get() = travelled / route.length
 
-    /** Centro del cuerpo (a lo que apuntan los proyectiles). */
-    val bodyCenter get() = position - Offset(0f, (RADIUS * 0.75).toFloat())
+    /** Vaivén vertical de los que vuelan (px de mapa, hacia arriba); 0 para los que se arrastran. */
+    val hover: Float
+        get() = if (entity.kind == EnemyKind.butterfly) HOVER_AMPLITUDE * sin(animT * HOVER_RATE).toFloat() else 0f
+
+    /** Centro del cuerpo (a lo que apuntan los proyectiles); en el aire para los que vuelan. */
+    val bodyCenter get() = position - Offset(0f, EnemySheet.of(entity.kind).bodyHeight + hover)
 
     fun update(dt: Double, game: DefenseGame) {
         if (flash > 0) flash -= dt
@@ -449,6 +459,10 @@ class Enemy(val route: RoutePath, entity: EnemyEntity, spawnIndex: Int) {
     companion object {
         /** Radio aproximado del cuerpo en px de mapa (pruebas de impacto, choque de proyectiles). */
         const val RADIUS = 22.0
+
+        /** Vaivén de las mariposas: amplitud en px de mapa y ritmo (radianes por unidad de animT). */
+        private const val HOVER_AMPLITUDE = 4f
+        private const val HOVER_RATE = 2.5
     }
 }
 
@@ -505,7 +519,7 @@ class Projectile(
     }
 }
 
-/** Animación de sprite de una sola vez (impactos, muertes de slime). */
+/** Animación de sprite de una sola vez (impactos, muertes de enemigos). */
 class AnimEffect(
     val kind: Kind,
     val element: PetElement?,
@@ -513,8 +527,10 @@ class AnimEffect(
     val flipX: Boolean,
     val frames: Int,
     val stepTime: Double,
+    /** Qué enemigo muere (solo en [Kind.EnemyDeath]). */
+    val enemyKind: EnemyKind? = null,
 ) {
-    enum class Kind { SkillImpact, SlimeDeath }
+    enum class Kind { SkillImpact, EnemyDeath }
 
     var age = 0.0
     val frame get() = minOf(frames - 1, floor(age / stepTime).toInt())
@@ -524,8 +540,10 @@ class AnimEffect(
         fun skillImpact(element: PetElement, at: Offset) =
             AnimEffect(Kind.SkillImpact, element, at, false, frames = 4, stepTime = 0.06)
 
-        fun slimeDeath(at: Offset, flip: Boolean) =
-            AnimEffect(Kind.SlimeDeath, null, at, flip, frames = 6, stepTime = 0.07)
+        fun enemyDeath(enemy: EnemyKind, at: Offset, flip: Boolean): AnimEffect {
+            val sheet = EnemySheet.of(enemy)
+            return AnimEffect(Kind.EnemyDeath, null, at, flip, sheet.deathFrames, sheet.deathStep, enemy)
+        }
     }
 }
 

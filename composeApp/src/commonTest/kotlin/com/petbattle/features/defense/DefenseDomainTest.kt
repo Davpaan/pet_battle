@@ -5,6 +5,7 @@ import com.petbattle.features.defense.domain.DefenseBalance
 import com.petbattle.features.defense.domain.DefenseRules
 import com.petbattle.features.defense.domain.RoutePath
 import com.petbattle.features.defense.domain.entities.EnemyEntity
+import com.petbattle.features.defense.domain.entities.EnemyKind
 import com.petbattle.features.defense.domain.entities.MapPoint
 import com.petbattle.features.defense.domain.entities.MapRoute
 import com.petbattle.features.defense.domain.maps.jungleCampMap
@@ -30,6 +31,24 @@ class DefenseDomainTest {
         assertEquals(listOf(0, 0, 1, 2), listOf(0.0, 9.99, 10.0, 25.0).map(DefenseRules::speedLevel))
         close(1.6, DefenseRules.speedMultiplier(30.0))
         assertEquals(listOf(1, 1, 2, 4), listOf(0.0, 19.9, 20.0, 65.0).map(DefenseRules::enemyLevel))
+    }
+
+    @Test fun butterfliesAppearFromLevel8MixedWithWorms() {
+        // Antes del nivel 8 siempre gusanos, salga lo que salga en el dado.
+        assertFalse(DefenseRules.butterfliesUnlocked(7))
+        assertEquals(EnemyKind.worm, DefenseRules.enemyKind(7, 0.0))
+        // Desde el nivel 8, mitad y mitad.
+        assertTrue(DefenseRules.butterfliesUnlocked(8))
+        assertEquals(EnemyKind.butterfly, DefenseRules.enemyKind(8, 0.49))
+        assertEquals(EnemyKind.worm, DefenseRules.enemyKind(8, 0.5))
+        assertEquals(EnemyKind.butterfly, DefenseRules.enemyKind(12, 0.1))
+        // El nivel 8 llega a los 140 s de partida.
+        assertEquals(8, DefenseRules.enemyLevel(140.0))
+        // Una mariposa tiene las mismas reglas de vida que un gusano de su nivel.
+        val b = EnemyEntity.spawn(8, EnemyKind.butterfly)
+        assertEquals(EnemyKind.butterfly, b.kind)
+        close(EnemyEntity.spawn(8).maxHp, b.maxHp)
+        assertEquals(EnemyKind.butterfly, b.hit(1.0).kind)
     }
 
     @Test fun routePathInterpolates() {

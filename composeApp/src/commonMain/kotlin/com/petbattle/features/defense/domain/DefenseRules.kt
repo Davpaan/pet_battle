@@ -1,5 +1,6 @@
 package com.petbattle.features.defense.domain
 
+import com.petbattle.features.defense.domain.entities.EnemyKind
 import com.petbattle.shared_features.pet_combat.domain.PetCombatStats
 import kotlin.math.floor
 
@@ -15,6 +16,12 @@ object DefenseBalance {
 
     /** Los enemigos aparecen en nivel 1 y suben un nivel cada este tiempo. */
     const val ENEMY_LEVEL_STEP_SECONDS = 20.0
+
+    /** Desde este nivel de enemigo empiezan a salir mariposas, mezcladas con los gusanos. */
+    const val BUTTERFLY_MIN_LEVEL = 8
+
+    /** Probabilidad de que un enemigo nuevo sea mariposa, una vez desbloqueadas. */
+    const val BUTTERFLY_CHANCE = 0.5
     const val LIVES = 10
 
     // Mascotas. Daño, velocidad, confianza (acierto) y rango (alcance) son sus stats de
@@ -38,6 +45,17 @@ object DefenseRules {
     /** Nivel de los enemigos que aparecen en [elapsed]: 1, luego +1 por paso. */
     fun enemyLevel(elapsed: Double) =
         1 + if (elapsed <= 0) 0 else floor(elapsed / DefenseBalance.ENEMY_LEVEL_STEP_SECONDS).toInt()
+
+    /** Si a nivel [level] ya pueden salir mariposas. */
+    fun butterfliesUnlocked(level: Int) = level >= DefenseBalance.BUTTERFLY_MIN_LEVEL
+
+    /**
+     * Tipo del próximo enemigo de nivel [level], dado un [roll] aleatorio uniforme en 0..1:
+     * siempre gusano antes de [DefenseBalance.BUTTERFLY_MIN_LEVEL]; después, mariposa con
+     * probabilidad [DefenseBalance.BUTTERFLY_CHANCE].
+     */
+    fun enemyKind(level: Int, roll: Double) =
+        if (butterfliesUnlocked(level) && roll < DefenseBalance.BUTTERFLY_CHANCE) EnemyKind.butterfly else EnemyKind.worm
 
     /** Multiplicador de velocidad mostrado al jugador (1.0, 1.2, 1.4...). */
     fun speedMultiplier(elapsed: Double) = enemySpeed(elapsed) / DefenseBalance.BASE_ENEMY_SPEED

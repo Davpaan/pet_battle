@@ -46,6 +46,7 @@ import com.petbattle.core.time.systemNowMillis
 import com.petbattle.core.ui.drawSpriteFrame
 import com.petbattle.shared_features.biomes.domain.Biome
 import com.petbattle.shared_features.biomes.presentation.background
+import com.petbattle.shared_features.biomes.presentation.backgroundLayers
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import com.petbattle.shared_features.pet_species.presentation.BirdSheet
 import com.petbattle.shared_features.pet_species.presentation.sheet
@@ -90,6 +91,9 @@ fun BiomeScene(
     walkEndInset: Dp = 0.dp,
 ) {
     val backdrop = imageResource(biome.background)
+    val layers = biome.backgroundLayers?.let {
+        BackdropLayers(imageResource(it.sky), imageResource(it.back), imageResource(it.terrain))
+    }
     val sheets = PetSpecies.entries.associateWith { imageResource(it.sheet) }
     val eggImage = imageResource(Res.drawable.pet_egg)
     val state = remember(biome) { BiomeSceneState() }
@@ -124,7 +128,11 @@ fun BiomeScene(
         },
     ) {
         frame // se lee para que cada frame se redibuje
-        drawBiomeBackdrop(backdrop, state.look)
+        if (layers != null) {
+            drawLayeredBackdrop(layers, state.time, state.look)
+        } else {
+            drawBiomeBackdrop(backdrop, state.look)
+        }
         state.layout(size, walkStartInset.toPx(), walkEndInset.toPx())
         // La activa al final: queda delante de las demás.
         val ordered = pets.sortedBy { it.id == activeId }
@@ -484,18 +492,76 @@ private const val PET_LOOK_SHARE = 0.6f
  * píxeles, con el aspecto [look] del momento del día (matriz de color + degradado de cielo).
  */
 fun DrawScope.drawBiomeBackdrop(image: ImageBitmap, look: DayLook = DayLook.Midday) {
+    drawBackdropLayer(image, look)
+    drawDayGradient(look)
+}
+
+/** Imágenes de un fondo por capas (ver BiomeLayers), de atrás adelante. */
+class BackdropLayers(val sky: ImageBitmap, val back: ImageBitmap, val terrain: ImageBitmap)
+
+/** Cuánto más grande se dibuja cada capa móvil, para tener margen al desplazarse sin ver bordes. */
+private const val SKY_ZOOM = 1.06f
+private const val BACK_ZOOM = 1.02f
+
+/** Parte del margen que recorre cada capa: el cielo se mueve más que las colinas (parallax). */
+private const val SKY_DRIFT = 1f
+private const val BACK_DRIFT = 0.6f
+
+/** Segundos que tarda el vaivén lento de las capas del fondo en ir y volver. */
+private const val DRIFT_PERIOD_S = 80.0
+
+/** Altura (fracción de la imagen) que se mantiene fija al ampliar una capa: la línea del horizonte. */
+private const val HORIZON_ANCHOR = 0.70f
+
+/**
+ * Dibuja un fondo por capas: el cielo y los elementos de fondo se desplazan despacio a
+ * distinta velocidad según [time] (segundos de escena), y el terreno queda fijo delante.
+ * Cada capa recibe la matriz de color de [look] y el degradado del cielo va una sola vez
+ * encima de todas, como en [drawBiomeBackdrop].
+ */
+fun DrawScope.drawLayeredBackdrop(
+    layers: BackdropLayers,
+    time: Double,
+    look: DayLook = DayLook.Midday,
+) {
+    val drift = sin(time * 2 * kotlin.math.PI / DRIFT_PERIOD_S).toFloat()
+    drawBackdropLayer(layers.sky, look, zoom = SKY_ZOOM, shift = drift * SKY_DRIFT)
+    drawBackdropLayer(layers.back, look, zoom = BACK_ZOOM, shift = drift * BACK_DRIFT)
+    drawBackdropLayer(layers.terrain, look)
+    drawDayGradient(look)
+}
+
+/**
+ * Dibuja [image] cubriendo el lienzo sin suavizar los píxeles. Con [zoom] > 1 se amplía
+ * (manteniendo el horizonte a la misma altura que una capa sin ampliar) y [shift], de -1 a 1,
+ * la desplaza en horizontal dentro del margen que deja la ampliación. Aplica la matriz de
+ * color de [look] (el degradado del cielo lo añade quien llama, una vez por fondo).
+ */
+private fun DrawScope.drawBackdropLayer(
+    image: ImageBitmap,
+    look: DayLook,
+    zoom: Float = 1f,
+    shift: Float = 0f,
+) {
     val w = size.width
     val h = size.height
-    val k = max(w / image.width, h / image.height)
+    val k0 = max(w / image.width, h / image.height)
+    val k = k0 * zoom
     val srcW = (w / k).roundToInt().coerceAtMost(image.width)
     val srcH = (h / k).roundToInt().coerceAtMost(image.height)
+    // Altura en pantalla del horizonte con el recorte centrado sin ampliar.
+    val baseTop = (image.height - h / k0) / 2
+    val horizonY = image.height * HORIZON_ANCHOR
+    val screenHorizon = (horizonY - baseTop) * k0
+    val top = (horizonY - screenHorizon / k).roundToInt().coerceIn(0, image.height - srcH)
+    val slack = (image.width - srcW) / 2
+    val left = (slack + shift.coerceIn(-1f, 1f) * slack).roundToInt().coerceIn(0, image.width - srcW)
     drawImage(
         image,
-        srcOffset = IntOffset((image.width - srcW) / 2, (image.height - srcH) / 2),
+        srcOffset = IntOffset(left, top),
         srcSize = IntSize(srcW, srcH),
         dstSize = IntSize(w.roundToInt(), h.roundToInt()),
         filterQuality = FilterQuality.None,
         colorFilter = if (look.isNeutral) null else look.colorFilter(),
     )
-    drawDayGradient(look)
 }
