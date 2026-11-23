@@ -33,6 +33,7 @@ import com.petbattle.core.ui.GameIconImage
 import com.petbattle.core.ui.GameUi
 import com.petbattle.features.pet.presentation.game.drawBiomeBackdrop
 import com.petbattle.shared_features.biomes.domain.Biome
+import com.petbattle.shared_features.biomes.domain.isPlayable
 import com.petbattle.shared_features.biomes.presentation.background
 import com.petbattle.shared_features.biomes.presentation.label
 import com.petbattle.shared_features.pet_status.domain.GameRules
@@ -42,7 +43,8 @@ import org.jetbrains.compose.resources.imageResource
 /**
  * Cuadrícula de biomas (pestaña "Biomas" del menú de juego). Los comprados muestran cuántas
  * mascotas viven allí y elegirlos viaja a ellos; los bloqueados muestran el candado y su
- * precio, y elegirlos intenta comprarlos.
+ * precio, y elegirlos intenta comprarlos. Los que aún no se pueden jugar (Biome.isPlayable)
+ * salen al final como "Próximamente".
  */
 @Composable
 fun BiomeGrid(gameState: GameStateEntity, onPicked: (Biome) -> Unit, modifier: Modifier = Modifier) {
@@ -52,12 +54,14 @@ fun BiomeGrid(gameState: GameStateEntity, onPicked: (Biome) -> Unit, modifier: M
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = modifier,
     ) {
-        items(Biome.entries) { biome ->
+        // Primero los que se pueden jugar; los "próximamente", al final.
+        items(Biome.entries.sortedBy { !it.isPlayable }) { biome ->
             BiomeTile(
                 biome = biome,
                 petCount = gameState.petsIn(biome).size,
                 selected = gameState.currentBiome == biome,
-                unlocked = gameState.isUnlocked(biome),
+                playable = biome.isPlayable,
+                unlocked = gameState.isUnlocked(biome) && biome.isPlayable,
                 affordable = gameState.gold >= GameRules.BIOME_PRICE,
                 onClick = { onPicked(biome) },
             )
@@ -70,6 +74,7 @@ private fun BiomeTile(
     biome: Biome,
     petCount: Int,
     selected: Boolean,
+    playable: Boolean,
     unlocked: Boolean,
     affordable: Boolean,
     onClick: () -> Unit,
@@ -101,6 +106,8 @@ private fun BiomeTile(
                     },
                     style = GameUi.text(12.sp, if (petCount == 0) Color(0xFFCFC3B4) else GameUi.Gold),
                 )
+            } else if (!playable) {
+                Text("Próximamente", style = GameUi.text(12.sp, Color(0xFFCFC3B4)))
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     GameIconImage(GameIcon.Coin, 16.dp)

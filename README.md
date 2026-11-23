@@ -35,9 +35,10 @@ La partida se guarda sola: en Android en SharedPreferences y en escritorio en
 
 ## Cómo se juega
 
-- **Biomas**: empiezas en la **pradera**, que viene gratis; nunca eliges la especie. El resto
-  de biomas (bosque, montaña, coníferas, prado, tundra, tierras altas y costa) están
-  bloqueados y cuestan **20 de oro** cada uno. Varias mascotas conviven en un bioma y puedes
+- **Biomas**: empiezas en la **pradera**, que viene gratis; nunca eliges la especie. De
+  momento solo se puede jugar también el **bosque** (20 de oro); el resto (montaña, coníferas,
+  prado, tundra, tierras altas y costa) salen como "Próximamente". Los biomas jugables tienen
+  el fondo por capas: el cielo avanza sin parar (las nubes se mueven) y el fondo se mece. Varias mascotas conviven en un bioma y puedes
   volver a cualquiera de los comprados cuando quieras.
 - **Oro**: cada enemigo derrotado en el modo defensa da **1 moneda de oro**. Un huevo nuevo
   cuesta **10 de oro** (el primero es gratis).

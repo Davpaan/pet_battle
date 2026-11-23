@@ -12,6 +12,9 @@ import com.petbattle.resources.biome_meadow
 import com.petbattle.resources.biome_mountain
 import com.petbattle.resources.biome_tundra
 import com.petbattle.resources.biome_woodland
+import com.petbattle.resources.biome_woodland_back
+import com.petbattle.resources.biome_woodland_sky
+import com.petbattle.resources.biome_woodland_terrain
 import com.petbattle.shared_features.biomes.domain.Biome
 import org.jetbrains.compose.resources.DrawableResource
 
@@ -57,6 +60,11 @@ val Biome.backgroundLayers: BiomeLayers?
             sky = Res.drawable.biome_grassland_sky,
             back = Res.drawable.biome_grassland_hills,
             terrain = Res.drawable.biome_grassland_terrain,
+        )
+        Biome.woodland -> BiomeLayers(
+            sky = Res.drawable.biome_woodland_sky,
+            back = Res.drawable.biome_woodland_back,
+            terrain = Res.drawable.biome_woodland_terrain,
         )
         else -> null
     }

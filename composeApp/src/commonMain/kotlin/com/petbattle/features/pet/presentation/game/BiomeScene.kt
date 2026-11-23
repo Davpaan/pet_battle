@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -64,8 +65,20 @@ import kotlin.math.sign
 import kotlin.math.sin
 import kotlin.random.Random
 
-/** Altura del suelo (fracción de la altura del lienzo) sobre la que se posan los pájaros. */
-private const val GROUND = 0.93f
+/** Altura (fracción del lienzo) del suelo más cercano, donde se posan los pájaros de delante. */
+private const val FRONT_GROUND = 0.965f
+
+/** Margen (fracción del lienzo) por debajo del borde del terreno: ni al fondo pisan fuera de él. */
+private const val TERRAIN_MARGIN = 0.012f
+
+/** Fondos sin capas: altura (fracción de la imagen) donde empieza el suelo continuo. */
+private const val FALLBACK_TERRAIN_SOLID = 0.82f
+
+/** Cuánto encoge un pájaro por cada fracción del lienzo que se aleja hacia el fondo (perspectiva). */
+private const val PERSPECTIVE = 1.6f
+
+/** Distancia mínima en profundidad (0..1) para que dos pájaros posados no ocupen el mismo sitio. */
+private const val DEPTH_GAP = 0.35
 
 /**
  * El bioma con todas sus mascotas a la vez. Cada una descansa un rato y luego vuela
@@ -92,7 +105,10 @@ fun BiomeScene(
 ) {
     val backdrop = imageResource(biome.background)
     val layers = biome.backgroundLayers?.let {
-        BackdropLayers(imageResource(it.sky), imageResource(it.back), imageResource(it.terrain))
+        val terrain = imageResource(it.terrain)
+        // Dónde empieza el suelo continuo de la capa de terreno (se mide una vez por imagen).
+        val solid = remember(terrain) { solidRowFraction(terrain) }
+        BackdropLayers(imageResource(it.sky), imageResource(it.back), terrain, solid)
     }
     val sheets = PetSpecies.entries.associateWith { imageResource(it.sheet) }
     val eggImage = imageResource(Res.drawable.pet_egg)
@@ -133,9 +149,14 @@ fun BiomeScene(
         } else {
             drawBiomeBackdrop(backdrop, state.look)
         }
-        state.layout(size, walkStartInset.toPx(), walkEndInset.toPx())
-        // La activa al final: queda delante de las demás.
-        val ordered = pets.sortedBy { it.id == activeId }
+        val ground = layers?.terrain ?: backdrop
+        state.layout(
+            size, walkStartInset.toPx(), walkEndInset.toPx(),
+            terrainSolid = layers?.terrainSolid ?: FALLBACK_TERRAIN_SOLID,
+            imageWidth = ground.width, imageHeight = ground.height,
+        )
+        // De atrás adelante: las que están más cerca tapan a las del fondo.
+        val ordered = pets.sortedByDescending { state.actors[it.id]?.depth ?: 0.0 }
         val now = systemNowMillis()
         for (pet in ordered) {
             val actor = state.actors[pet.id] ?: continue
@@ -153,8 +174,12 @@ fun BiomeScene(
 }
 
 /** Una mascota en escena: posición, vuelo y animaciones (nunca se persiste). */
-private class Actor(var x: Double, val phase: Double) {
+private class Actor(var x: Double, var depth: Double, val phase: Double) {
     var target = x
+
+    /** Profundidad a la que vuela (0 = delante, 1 = al fondo) y a qué ritmo cambia. */
+    var targetDepth = depth
+    var depthSpeed = 0.0
     var moving = false
     var lift = 0.0 // 0 = posada, 1 = altura de vuelo
     var facingRight = Random.nextBoolean()
@@ -199,18 +224,36 @@ private class BiomeSceneState {
     var slotSide = 0f // lado del sprite de un adulto
     var walkLeft = 0f
     var walkWidth = 1f
-    var groundY = 0f
+    var frontY = 0f // suelo más cercano (profundidad 0)
+    var backY = 0f // suelo más lejano (profundidad 1): el borde del terreno
+    var canvasHeight = 1f
+
+    /** Altura del suelo a la profundidad [depth] (0 = delante, 1 = al fondo). */
+    fun groundYAt(depth: Double) = frontY + (backY - frontY) * depth.toFloat()
+
+    /** Escala por perspectiva a la profundidad [depth]: más lejos, más pequeño. */
+    fun scaleAt(depth: Double) = (1f - (frontY - groundYAt(depth)) / canvasHeight * PERSPECTIVE).coerceAtLeast(0.6f)
 
     /** Distancia mínima (en fracción de la zona de paseo) entre dos mascotas posadas. */
     var gap = 0.15
 
-    fun layout(size: Size, startInset: Float, endInset: Float) {
+    /**
+     * Medidas de este frame. [terrainSolid] es la altura (fracción de una imagen de
+     * [imageWidth] x [imageHeight]) donde empieza el suelo continuo; se lleva a la pantalla con
+     * el mismo recorte con el que se dibuja el fondo, y es el límite del fondo: no lo pisan.
+     */
+    fun layout(size: Size, startInset: Float, endInset: Float, terrainSolid: Float, imageWidth: Int, imageHeight: Int) {
         val raw = min(size.width * 0.3f, size.height * 0.24f)
         slotSide = raw
         val margin = slotSide * 0.1f
         walkLeft = startInset + margin
         walkWidth = max(1f, size.width - startInset - endInset - 2 * margin - slotSide)
-        groundY = size.height * GROUND
+        canvasHeight = size.height
+        frontY = size.height * FRONT_GROUND
+        val k = max(size.width / imageWidth, size.height / imageHeight)
+        val cropTop = (imageHeight - size.height / k) / 2
+        val terrainTop = (terrainSolid * imageHeight - cropTop) * k
+        backY = min(frontY, terrainTop + size.height * TERRAIN_MARGIN)
         gap = (slotSide * 0.85f / walkWidth).toDouble()
     }
 
@@ -228,7 +271,10 @@ private class BiomeSceneState {
         night = phase == DayPhase.night
         val ids = pets.map { it.id }.toSet()
         actors.keys.retainAll(ids)
-        for (pet in pets) if (pet.id !in actors) actors[pet.id] = Actor(spawnSpot(), Random.nextDouble() * 10)
+        for (pet in pets) if (pet.id !in actors) {
+            val depth = Random.nextDouble()
+            actors[pet.id] = Actor(spawnSpot(depth), depth, Random.nextDouble() * 10)
+        }
 
         look = lerp(look, DayLook.of(phase), (dt * 2.5).coerceIn(0.0, 1.0).toFloat())
 
@@ -267,22 +313,30 @@ private class BiomeSceneState {
         var target = Random.nextDouble()
         repeat(5) { if (abs(target - a.x) < gap) target = Random.nextDouble() }
         a.target = target
+        // También cambia de profundidad, al ritmo justo para llegar a la vez que en horizontal.
+        a.targetDepth = Random.nextDouble()
+        val flightTime = max(abs(target - a.x) / SPEED, 0.5)
+        a.depthSpeed = abs(a.targetDepth - a.depth) / flightTime
         a.moving = true
         a.facingRight = target > a.x
     }
 
     private fun fly(a: Actor, dt: Double) {
+        val depthStep = a.depthSpeed * dt
+        a.depth = if (abs(a.targetDepth - a.depth) > depthStep) a.depth + sign(a.targetDepth - a.depth) * depthStep else a.targetDepth
         val step = SPEED * dt
         val dir = sign(a.target - a.x)
-        a.facingRight = dir > 0
+        if (dir != 0.0) a.facingRight = dir > 0
         if (abs(a.target - a.x) > step) {
             a.x += dir * step
             return
         }
         a.x = a.target
+        // Se posa cuando llega también a su profundidad.
+        if (a.depth != a.targetDepth) return
         // Al posarse no puede quedar encima de otra: sigue de largo o se da la vuelta.
-        if (!isFree(a.x, a)) {
-            val spot = freeSpotFrom(a.x, if (dir == 0.0) 1.0 else dir, a)
+        if (!isFree(a.x, a.depth, a)) {
+            val spot = freeSpotFrom(a.x, a.depth, if (dir == 0.0) 1.0 else dir, a)
             if (spot != null) {
                 a.target = spot
                 return
@@ -292,36 +346,36 @@ private class BiomeSceneState {
         a.restFor = 3.0 + Random.nextDouble() * 5
     }
 
-    private fun isFree(x: Double, self: Actor?) =
-        actors.values.none { it !== self && !it.moving && abs(it.x - x) < gap }
+    /** Nadie posado cerca de ([x], [depth]): ni en horizontal ni en profundidad. */
+    private fun isFree(x: Double, depth: Double, self: Actor?) =
+        actors.values.none { it !== self && !it.moving && abs(it.x - x) < gap && abs(it.depth - depth) < DEPTH_GAP }
 
-    /** Primer hueco libre avanzando en [dir]; si no hay, el primero en sentido contrario. */
-    private fun freeSpotFrom(from: Double, dir: Double, self: Actor?): Double? {
+    /** Primer hueco libre (a la profundidad [depth]) avanzando en [dir]; si no hay, el primero en sentido contrario. */
+    private fun freeSpotFrom(from: Double, depth: Double, dir: Double, self: Actor?): Double? {
         for (d in listOf(dir, -dir)) {
             var k = 1
             while (true) {
                 val c = from + d * k * gap * 0.5
                 if (c < 0.0 || c > 1.0) break
-                if (isFree(c, self)) return c
+                if (isFree(c, depth, self)) return c
                 k++
             }
         }
         return null
     }
 
-    private fun spawnSpot(): Double {
+    private fun spawnSpot(depth: Double): Double {
         repeat(30) {
             val c = Random.nextDouble()
-            if (isFree(c, null)) return c
+            if (isFree(c, depth, null)) return c
         }
         return Random.nextDouble()
     }
 
-    /** Mascota bajo [pos]; la activa tiene prioridad porque se dibuja delante. */
-    fun petAt(pos: Offset, activeId: String?): String? {
-        activeId?.let { id -> if (actors[id]?.rect?.contains(pos) == true) return id }
-        return actors.entries.lastOrNull { it.value.rect.contains(pos) }?.key
-    }
+    /** Mascota bajo [pos]: si se solapan varias, la más cercana (es la que se ve delante). */
+    @Suppress("UNUSED_PARAMETER")
+    fun petAt(pos: Offset, activeId: String?): String? =
+        actors.entries.filter { it.value.rect.contains(pos) }.minByOrNull { it.value.depth }?.key
 
     fun onTapped(id: String, pets: List<PetEntity>) {
         val a = actors[id] ?: return
@@ -355,31 +409,33 @@ private fun timeLeft(ms: Long): String {
 
 /** Un huevo en su nido: quieto, y en su última hora se balancea porque va a eclosionar. */
 private fun DrawScope.drawEgg(state: BiomeSceneState, a: Actor, pet: PetEntity, image: ImageBitmap, now: Long) {
-    val side = state.slotSide * 0.55f
+    val side = state.slotSide * 0.55f * state.scaleAt(a.depth)
+    val groundY = state.groundYAt(a.depth)
     val slotLeft = state.walkLeft + a.x.toFloat() * state.walkWidth
     val left = slotLeft + (state.slotSide - side) / 2
-    val topY = state.groundY - side
+    val topY = groundY - side
     a.rect = Rect(left, topY, left + side, topY + side)
     val remaining = pet.hatchesAt!! - now
     val wobble = if (remaining < 3_600_000L) sin((state.time + a.phase) * 9).toFloat() * 7f else 0f
-    rotate(wobble, pivot = Offset(left + side / 2, state.groundY)) {
+    rotate(wobble, pivot = Offset(left + side / 2, groundY)) {
         drawImage(
             image,
             dstOffset = IntOffset(left.roundToInt(), topY.roundToInt()),
             dstSize = IntSize(side.roundToInt(), side.roundToInt()),
-            colorFilter = state.look.colorFilter(PET_LOOK_SHARE),
         )
     }
 }
 
 private fun DrawScope.drawActor(state: BiomeSceneState, a: Actor, pet: PetEntity, sheet: ImageBitmap) {
     // Los sprites son de alta resolución: se escalan libremente con suavizado.
-    val side = state.slotSide * pet.species.spriteScale
+    // Más lejos (al fondo), más pequeño y más arriba en la pantalla.
+    val perspective = state.scaleAt(a.depth)
+    val side = state.slotSide * pet.species.spriteScale * perspective
     val slotLeft = state.walkLeft + a.x.toFloat() * state.walkWidth
     val left = slotLeft + (state.slotSide - side) / 2
-    val groundY = state.groundY
+    val groundY = state.groundYAt(a.depth)
     val flap = if (a.lift > 0.01) sin((state.time + a.phase) * 9).toFloat() * side * 0.03f else 0f
-    val liftPx = (a.lift.toFloat() * state.slotSide * 0.35f) + flap * a.lift.toFloat()
+    val liftPx = (a.lift.toFloat() * state.slotSide * perspective * 0.35f) + flap * a.lift.toFloat()
     val topY = groundY - side - liftPx
     a.rect = Rect(left, topY, left + side, topY + side)
 
@@ -390,10 +446,13 @@ private fun DrawScope.drawActor(state: BiomeSceneState, a: Actor, pet: PetEntity
     val asleep = state.isResting(pet)
     val t = state.time + a.phase
     val (col, row) = when {
-        a.lift > 0.05 -> (floor(t / 0.08).toInt() % 4) to BirdSheet.FLY_ROW
-        a.reactT >= 0 -> min(3, floor(a.reactT / 0.1).toInt()) to BirdSheet.REACT_ROW
-        asleep -> 0 to BirdSheet.IDLE_ROW // dormir congela la pose idle
-        else -> (floor(t / 0.45).toInt() % 4) to BirdSheet.IDLE_ROW
+        a.lift > 0.05 -> (floor(t / 0.06).toInt() % BirdSheet.frames(BirdSheet.FLY_ROW)) to BirdSheet.FLY_ROW
+        // Al tocarla, mira arriba (hacia quien la mima).
+        a.reactT >= 0 -> min(BirdSheet.frames(BirdSheet.LOOK_UP_ROW) - 1, floor(a.reactT / 0.1).toInt()) to BirdSheet.LOOK_UP_ROW
+        // Dormida: su animación de dormir, muy lenta. De noche despierta: descansa.
+        pet.needs.isSleeping -> (floor(t / 0.9).toInt() % BirdSheet.frames(BirdSheet.SLEEP_ROW)) to BirdSheet.SLEEP_ROW
+        asleep -> (floor(t / 0.7).toInt() % BirdSheet.frames(BirdSheet.REST_ROW)) to BirdSheet.REST_ROW
+        else -> (floor(t / 0.3).toInt() % BirdSheet.frames(BirdSheet.IDLE_ROW)) to BirdSheet.IDLE_ROW
     }
 
     // Respiración idle: más lenta y profunda mientras duerme.
@@ -401,10 +460,8 @@ private fun DrawScope.drawActor(state: BiomeSceneState, a: Actor, pet: PetEntity
     val amount = (0.02 + a.sleepT * 0.02) * (1 - a.lift)
     val b = (sin(t * speed) * amount).toFloat()
     val (bx, by) = a.bounceScale()
-    // Desaturado si está mal, y con el filtro del momento del día (más suave que el fondo).
-    val matrix = ColorMatrix().apply { setToSaturation(a.saturation.toFloat()) }
-    matrix.timesAssign(state.look.colorMatrix(PET_LOOK_SHARE))
-    val filter = ColorFilter.colorMatrix(matrix)
+    // Desaturado si está mal (el filtro del momento del día solo cae sobre el cielo).
+    val filter = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(a.saturation.toFloat()) })
     val pivot = Offset(left + side / 2, topY + side)
     val dirtiness = ((60 - pet.needs.hygiene) / 60).coerceIn(0.0, 1.0)
 
@@ -484,9 +541,6 @@ private fun DrawScope.drawName(textMeasurer: TextMeasurer, a: Actor, name: Strin
     }
 }
 
-/** Qué parte del filtro del momento del día reciben los pájaros (respecto al fondo). */
-private const val PET_LOOK_SHARE = 0.6f
-
 /**
  * Dibuja [image] cubriendo todo el lienzo (recortando lo que sobre, centrado) sin suavizar los
  * píxeles, con el aspecto [look] del momento del día (matriz de color + degradado de cielo).
@@ -497,15 +551,36 @@ fun DrawScope.drawBiomeBackdrop(image: ImageBitmap, look: DayLook = DayLook.Midd
 }
 
 /** Imágenes de un fondo por capas (ver BiomeLayers), de atrás adelante. */
-class BackdropLayers(val sky: ImageBitmap, val back: ImageBitmap, val terrain: ImageBitmap)
+class BackdropLayers(
+    val sky: ImageBitmap,
+    val back: ImageBitmap,
+    val terrain: ImageBitmap,
+    /** Altura (fracción de [terrain]) donde empieza el suelo continuo (ver [solidRowFraction]). */
+    val terrainSolid: Float,
+)
 
-/** Cuánto más grande se dibuja cada capa móvil, para tener margen al desplazarse sin ver bordes. */
-private const val SKY_ZOOM = 1.06f
+/**
+ * Primera fila (fracción de la altura) en la que [image] es casi del todo opaca: donde empieza
+ * el suelo continuo de una capa de terreno, por debajo de las puntas de hierba.
+ */
+fun solidRowFraction(image: ImageBitmap): Float {
+    val pixels = image.toPixelMap()
+    val columns = (0 until image.width step 8).toList()
+    for (y in 0 until image.height) {
+        val opaque = columns.count { pixels[it, y].alpha > 0.8f }
+        if (opaque >= columns.size * 0.98) return y.toFloat() / image.height
+    }
+    return 1f
+}
+
+/** Cuánto más grande se dibuja la capa de fondo, para tener margen al desplazarse sin ver bordes. */
 private const val BACK_ZOOM = 1.02f
 
-/** Parte del margen que recorre cada capa: el cielo se mueve más que las colinas (parallax). */
-private const val SKY_DRIFT = 1f
+/** Parte del margen que recorre la capa de fondo en su vaivén (parallax). */
 private const val BACK_DRIFT = 0.6f
+
+/** Segundos que tarda el cielo en recorrer su propio ancho: las nubes avanzan sin parar. */
+private const val SKY_LOOP_S = 240.0
 
 /** Segundos que tarda el vaivén lento de las capas del fondo en ir y volver. */
 private const val DRIFT_PERIOD_S = 80.0
@@ -514,10 +589,11 @@ private const val DRIFT_PERIOD_S = 80.0
 private const val HORIZON_ANCHOR = 0.70f
 
 /**
- * Dibuja un fondo por capas: el cielo y los elementos de fondo se desplazan despacio a
- * distinta velocidad según [time] (segundos de escena), y el terreno queda fijo delante.
- * Cada capa recibe la matriz de color de [look] y el degradado del cielo va una sola vez
- * encima de todas, como en [drawBiomeBackdrop].
+ * Dibuja un fondo por capas según [time] (segundos de escena): el cielo avanza sin parar en
+ * horizontal (las nubes se mueven y la imagen se repite al llegar al borde), los elementos de
+ * fondo se mecen despacio (parallax) y el terreno queda fijo delante.
+ * El filtro del momento del día ([look]: matriz de color y degradado del cielo) se aplica
+ * **solo al cielo**: el fondo y el terreno conservan siempre sus colores.
  */
 fun DrawScope.drawLayeredBackdrop(
     layers: BackdropLayers,
@@ -525,10 +601,42 @@ fun DrawScope.drawLayeredBackdrop(
     look: DayLook = DayLook.Midday,
 ) {
     val drift = sin(time * 2 * kotlin.math.PI / DRIFT_PERIOD_S).toFloat()
-    drawBackdropLayer(layers.sky, look, zoom = SKY_ZOOM, shift = drift * SKY_DRIFT)
-    drawBackdropLayer(layers.back, look, zoom = BACK_ZOOM, shift = drift * BACK_DRIFT)
-    drawBackdropLayer(layers.terrain, look)
-    drawDayGradient(look)
+    drawScrollingLayer(layers.sky, look, progress = time / SKY_LOOP_S)
+    drawDayGradient(look, ground = false)
+    drawBackdropLayer(layers.back, DayLook.Midday, zoom = BACK_ZOOM, shift = drift * BACK_DRIFT)
+    drawBackdropLayer(layers.terrain, DayLook.Midday)
+}
+
+/**
+ * Dibuja [image] a la altura de una capa sin ampliar, desplazada hacia la izquierda [progress]
+ * veces su ancho y repetida a continuación. Las copias se alternan normal / en espejo: así cada
+ * junta une un borde consigo mismo y el bucle no tiene corte aunque la imagen no sea cíclica
+ * (p. ej. una nube cortada en el borde).
+ */
+private fun DrawScope.drawScrollingLayer(image: ImageBitmap, look: DayLook, progress: Double) {
+    val k = max(size.width / image.width, size.height / image.height)
+    val w = (image.width * k).roundToInt()
+    val h = (image.height * k).roundToInt()
+    val top = ((size.height - h) / 2).roundToInt()
+    // El patrón (normal + espejo) se repite cada dos anchos.
+    val offset = ((progress % 2.0) * w).roundToInt()
+    val filter = if (look.isNeutral) null else look.colorFilter()
+    var x = -offset
+    var mirrored = false
+    while (x < size.width) {
+        if (x + w > 0) {
+            val dst = IntOffset(x, top)
+            if (mirrored) {
+                scale(-1f, 1f, pivot = Offset(x + w / 2f, top + h / 2f)) {
+                    drawImage(image, dstOffset = dst, dstSize = IntSize(w, h), filterQuality = FilterQuality.None, colorFilter = filter)
+                }
+            } else {
+                drawImage(image, dstOffset = dst, dstSize = IntSize(w, h), filterQuality = FilterQuality.None, colorFilter = filter)
+            }
+        }
+        x += w
+        mirrored = !mirrored
+    }
 }
 
 /**

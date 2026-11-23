@@ -201,7 +201,7 @@ private fun DrawScope.drawDefender(d: Defender, game: DefenseGame, sprites: Defe
     // Efecto de aparición + aplastamiento al disparar.
     val pop = if (d.age < 0.3) 1 + 0.15f * sin(d.age / 0.3 * kotlin.math.PI).toFloat() else 1f
     val squash = if (d.shotAge < 0.16) sin(d.shotAge / 0.16 * kotlin.math.PI).toFloat() else 0f
-    val col = floor(game.time / 0.45).toInt() % 4
+    val col = floor(game.time / 0.3).toInt() % BirdSheet.frames(BirdSheet.IDLE_ROW)
     // Recogida para recolocarla: semitransparente.
     val alpha = if (game.editingId == d.pet.id) 0.45f else 1f
     scale(pop * (1 + 0.08f * squash), pop * (1 - 0.08f * squash), pivot = feet) {

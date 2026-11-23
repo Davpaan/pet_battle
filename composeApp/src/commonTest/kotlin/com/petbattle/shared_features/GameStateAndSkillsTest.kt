@@ -6,6 +6,7 @@ import com.petbattle.shared_features.pet_combat.domain.PetCombatBalance
 import com.petbattle.shared_features.pet_combat.domain.PetCombatStatsRules
 import com.petbattle.core.time.DayPhase
 import com.petbattle.shared_features.biomes.domain.Biome
+import com.petbattle.shared_features.biomes.domain.isPlayable
 import com.petbattle.shared_features.pet_food.domain.Food
 import com.petbattle.shared_features.pet_status.domain.FeedResult
 import com.petbattle.shared_features.pet_status.domain.BreedingRules
@@ -304,9 +305,8 @@ class GameStateAndSkillsTest {
         var r = hatch(inWoodland, "Kai")
         r = hatch(r, "Luz")
         assertEquals(listOf("Kai", "Luz"), r.biomePets.map { it.name })
-        r = GameRules.buyBiome(r, Biome.tundra)
-        r = GameRules.enterBiome(r, Biome.tundra)
-        assertEquals(Biome.tundra, r.currentBiome)
+        r = GameRules.enterBiome(r, Biome.grassland) // la pradera viene gratis
+        assertEquals(Biome.grassland, r.currentBiome)
         assertNull(r.active)
         assertTrue(r.biomePets.isEmpty())
         r = hatch(r, "Nieve")
@@ -334,19 +334,37 @@ class GameStateAndSkillsTest {
     @Test fun eggsAndBiomesCostGoldAndLockedBiomesCannotBeVisited() {
         var r = hatch(GameStateEntity.newGame, "Kai")
         // Bloqueado: no se puede ir ni comprar sin oro.
-        assertEquals(r, GameRules.enterBiome(r, Biome.coast))
-        assertEquals(r, GameRules.buyBiome(r, Biome.coast))
+        assertEquals(r, GameRules.enterBiome(r, Biome.woodland))
+        assertEquals(r, GameRules.buyBiome(r, Biome.woodland))
         r = GameRules.awardGold(r, 25) // 25 enemigos
         r = hatch(r, "Luz")
         assertEquals(15, r.gold)
-        assertFalse(GameRules.canBuyBiome(r, Biome.coast))
+        assertFalse(GameRules.canBuyBiome(r, Biome.woodland))
         r = GameRules.awardGold(r, 5)
-        r = GameRules.buyBiome(r, Biome.coast)
+        r = GameRules.buyBiome(r, Biome.woodland)
         assertEquals(0, r.gold)
-        assertTrue(r.isUnlocked(Biome.coast))
-        assertEquals(r, GameRules.buyBiome(r, Biome.coast)) // no se compra dos veces
-        r = GameRules.enterBiome(r, Biome.coast)
-        assertEquals(Biome.coast, r.currentBiome)
+        assertTrue(r.isUnlocked(Biome.woodland))
+        assertEquals(r, GameRules.buyBiome(r, Biome.woodland)) // no se compra dos veces
+        r = GameRules.enterBiome(r, Biome.woodland)
+        assertEquals(Biome.woodland, r.currentBiome)
+    }
+
+    @Test fun onlyBiomesWithLayeredBackgroundsCanBePlayed() {
+        assertEquals(setOf(Biome.grassland, Biome.woodland), Biome.entries.filter { it.isPlayable }.toSet())
+        // Aunque haya oro, los demás no se compran ni se visitan.
+        val rich = GameStateEntity.newGame.copy(gold = 1_000)
+        assertFalse(GameRules.canBuyBiome(rich, Biome.coast))
+        assertEquals(rich, GameRules.buyBiome(rich, Biome.coast))
+        val owned = rich.copy(unlockedBiomes = rich.unlockedBiomes + Biome.coast)
+        assertEquals(owned, GameRules.enterBiome(owned, Biome.coast))
+        // Partidas antiguas: las mascotas de biomas no jugables se mudan a la pradera.
+        val old = GameStateEntity.empty.copy(
+            pets = listOf(PetEntity.newborn("Kai", PetSpecies.crow, now, id = "kai", biome = Biome.tundra)),
+            activeId = "kai", currentBiome = Biome.tundra,
+        )
+        val migrated = GameRules.migrate(old)
+        assertEquals(Biome.grassland, migrated.currentBiome)
+        assertEquals(Biome.grassland, migrated.active!!.biome)
     }
 
     @Test fun releasingRemovesThePetForGoodAndActivatesAnotherOfTheBiome() {

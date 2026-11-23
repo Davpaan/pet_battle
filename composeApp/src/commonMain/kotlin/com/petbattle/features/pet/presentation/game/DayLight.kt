@@ -28,7 +28,7 @@ data class DayLook(
 ) {
     /**
      * Matriz de color de este aspecto. Con [strength] < 1 se queda a medio camino de la imagen
-     * original (los pájaros reciben el filtro más suave que el fondo).
+     * original.
      */
     fun colorFilter(strength: Float = 1f): ColorFilter = ColorFilter.colorMatrix(colorMatrix(strength))
 
@@ -66,10 +66,10 @@ data class DayLook(
 
         /** Tarde: atardecer anaranjado, cálido, con el suelo hacia el violeta. */
         val Evening = DayLook(
-            red = 1.2f, green = 0.8f, blue = 0.54f,
-            saturation = 1.18f,
-            sky = Color(0xFFFF5E14).copy(alpha = 0.5f),
-            ground = Color(0xFF66204E).copy(alpha = 0.36f),
+            red = 1.1f, green = 0.9f, blue = 0.76f,
+            saturation = 1.08f,
+            sky = Color(0xFFFF7A33).copy(alpha = 0.3f),
+            ground = Color(0xFF66204E).copy(alpha = 0.2f),
         )
 
         /** Noche: oscura y azulada, poco color. */
@@ -100,8 +100,11 @@ fun lerp(a: DayLook, b: DayLook, t: Float) = DayLook(
     ground = lerp(a.ground, b.ground, t),
 )
 
-/** Degradado de cielo (arriba) y de suelo (abajo) de [look], sobre todo el lienzo. */
-fun DrawScope.drawDayGradient(look: DayLook) {
+/**
+ * Degradado de cielo (arriba) y, si [ground], de suelo (abajo) de [look], sobre todo el
+ * lienzo. Los fondos por capas solo usan el del cielo (el filtro no toca el suelo).
+ */
+fun DrawScope.drawDayGradient(look: DayLook, ground: Boolean = true) {
     val h = size.height
     if (look.sky.alpha > 0.01f) {
         drawRect(
@@ -109,7 +112,7 @@ fun DrawScope.drawDayGradient(look: DayLook) {
             size = Size(size.width, h * 0.65f),
         )
     }
-    if (look.ground.alpha > 0.01f) {
+    if (ground && look.ground.alpha > 0.01f) {
         drawRect(
             Brush.verticalGradient(listOf(look.ground.copy(alpha = 0f), look.ground), h * 0.45f, h),
             topLeft = Offset(0f, h * 0.45f),

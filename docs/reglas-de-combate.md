@@ -113,6 +113,9 @@ Las tablas de habilidades por tipo y por especie+tipo existen pero están vacía
   subir. Nivel máximo: **10**. El nuevo daño se aplica al instante, en mitad del combate.
 - Con el oro: un **huevo** cuesta **10** (el primero es gratis) y un **bioma** **20** (la
   pradera viene gratis).
+- **Biomas jugables**: de momento solo la **pradera** (gratis) y el **bosque** (20 de oro),
+  los que tienen fondo por capas. Los demás salen como "Próximamente": no se pueden comprar ni
+  visitar. Las mascotas de partidas antiguas que vivían en otro bioma se mudan a la pradera.
 
 ## 5. Necesidades de la mascota
 
@@ -198,16 +201,16 @@ ve (con sus estrellas) en su ficha. **De momento no tiene efecto en el juego.**
 
 ## 6. Ciclo del día (hora local)
 
-Cuatro franjas de 6 horas. Cada una cambia el aspecto del bioma con un filtro (una matriz de
-color sobre la imagen y un degradado de cielo y suelo); los pájaros reciben el filtro algo
-más suave. El cambio entre franjas es gradual.
+Cuatro franjas de 6 horas. Cada una cambia el aspecto del **cielo** con un filtro (una matriz
+de color y un degradado); el fondo, el suelo y los pájaros conservan siempre sus colores. El
+cambio entre franjas es gradual.
 
 | Momento | Horas | Aspecto | Mascotas |
 |---|---|---|---|
-| Noche | 0:00–6:00 | Oscuro y azulado, poco color | **Descansan** sin dormirse (recuperan descanso, todo baja al 40%); se puede seguir interactuando con ellas |
-| Mañana | 6:00–12:00 | El alba: cielo rosa coral, luz dorada baja, algo de neblina | Activas |
-| Mediodía | 12:00–18:00 | La imagen tal cual | Activas |
-| Tarde | 18:00–24:00 | Atardecer anaranjado, suelo hacia el violeta | Activas |
+| Noche | 0:00–6:00 | Cielo oscuro y azulado | **Descansan** sin dormirse (recuperan descanso, todo baja al 40%); se puede seguir interactuando con ellas |
+| Mañana | 6:00–12:00 | El alba: cielo rosa coral | Activas |
+| Mediodía | 12:00–18:00 | El cielo tal cual | Activas |
+| Tarde | 18:00–24:00 | Cielo de atardecer anaranjado | Activas |
 
 Dormir a una mascota a mano solo cambia su animación (y la hace descansar); dormida no come,
 no se limpia ni se deja mimar, y se despierta sola con el descanso lleno.

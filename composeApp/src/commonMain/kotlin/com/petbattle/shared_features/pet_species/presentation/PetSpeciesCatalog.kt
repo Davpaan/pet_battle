@@ -33,13 +33,27 @@ object BirdSheet {
 
     /** Los sprites de pájaro se escalan con suavizado (no son pixel art de texel grande). */
     val FILTER = FilterQuality.Medium
-    const val COLUMNS = 4
+
+    /**
+     * Rejilla de la hoja: 8 columnas x 6 filas, una animación por fila (cada una con su número
+     * de frames, ver [frames]). Las hojas se montan con tools/bird_sprites/build_grid.py.
+     */
+    const val COLUMNS = 8
 
     /** Índice de fila de cada animación en la hoja. */
-    const val FLY_ROW = 0
-    const val REACT_ROW = 1
-    const val IDLE_ROW = 2
-    const val HOP_ROW = 3
+    const val FLY_ROW = 0 // volar (8 frames)
+    const val IDLE_ROW = 1 // reposo de pie (6)
+    const val HOP_ROW = 2 // andar / saltar (6)
+    const val LOOK_UP_ROW = 3 // mirar arriba: su reacción al tocarla (4)
+    const val REST_ROW = 4 // descansar despierta, de noche (4)
+    const val SLEEP_ROW = 5 // dormir (4)
+
+    /** Número de frames de la animación de la fila [row]. */
+    fun frames(row: Int) = when (row) {
+        FLY_ROW -> 8
+        IDLE_ROW, HOP_ROW -> 6
+        else -> 4
+    }
 }
 
 /** Datos de presentación de cada especie: nombre visible y spritesheet. */

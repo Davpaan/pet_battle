@@ -1,6 +1,7 @@
 package com.petbattle.shared_features.pet_status.domain
 
 import com.petbattle.shared_features.biomes.domain.Biome
+import com.petbattle.shared_features.biomes.domain.isPlayable
 import com.petbattle.shared_features.pet_food.domain.Food
 import com.petbattle.shared_features.pet_skills.domain.PetProgression
 import com.petbattle.shared_features.pet_status.domain.entities.PetEntity
@@ -33,8 +34,9 @@ object GameRules {
     /** Oro que falta para el próximo huevo (0 si alcanza). */
     fun goldMissingForEgg(gameState: GameStateEntity) = (eggPrice(gameState) - gameState.gold).coerceAtLeast(0)
 
+    /** Se puede comprar si es jugable (Biome.isPlayable), aún no es tuyo y alcanza el oro. */
     fun canBuyBiome(gameState: GameStateEntity, biome: Biome) =
-        !gameState.isUnlocked(biome) && gameState.gold >= BIOME_PRICE
+        biome.isPlayable && !gameState.isUnlocked(biome) && gameState.gold >= BIOME_PRICE
 
     /** Compra [biome] (sin viajar a él). No hace nada si ya está comprado o no alcanza el oro. */
     fun buyBiome(gameState: GameStateEntity, biome: Biome): GameStateEntity =
@@ -81,7 +83,7 @@ object GameRules {
 
     /** Viaja a [biome] (si está comprado): se activa su primera mascota, o ninguna si está vacío. */
     fun enterBiome(gameState: GameStateEntity, biome: Biome): GameStateEntity {
-        if (biome == gameState.currentBiome || !gameState.isUnlocked(biome)) return gameState
+        if (biome == gameState.currentBiome || !gameState.isUnlocked(biome) || !biome.isPlayable) return gameState
         val first = gameState.petsIn(biome).firstOrNull { !it.isEgg }
         val moved = gameState.copy(currentBiome = biome, activeId = null)
         return if (first == null) moved else switchTo(moved, first.id)
@@ -125,12 +127,17 @@ object GameRules {
     /**
      * Pone al día partidas antiguas: sin bioma actual, se coloca al jugador en el de su mascota
      * activa (o en la pradera); se dan por comprados la pradera y los biomas donde ya vive
-     * alguna mascota, y si ya había mascotas el huevo gratis se considera usado.
+     * alguna mascota, y si ya había mascotas el huevo gratis se considera usado. Las mascotas
+     * que vivían en biomas que aún no se pueden jugar (Biome.isPlayable) se mudan a la pradera,
+     * para que no queden abandonadas donde no se puede ir.
      */
     fun migrate(gameState: GameStateEntity): GameStateEntity {
-        val current = gameState.currentBiome ?: (gameState.active ?: gameState.pets.firstOrNull())?.biome ?: Biome.grassland
+        val pets = gameState.pets.map { if (it.biome.isPlayable) it else it.copy(biome = Biome.grassland) }
+        val wanted = gameState.currentBiome ?: (gameState.active ?: gameState.pets.firstOrNull())?.biome ?: Biome.grassland
+        val current = if (wanted.isPlayable) wanted else Biome.grassland
         val unlocked = (gameState.unlockedBiomes + Biome.grassland + current + gameState.pets.map { it.biome }).distinct()
         return gameState.copy(
+            pets = pets,
             currentBiome = current,
             unlockedBiomes = unlocked,
             freeEggUsed = gameState.freeEggUsed || gameState.pets.isNotEmpty(),

@@ -46,6 +46,7 @@ import com.petbattle.features.pet.presentation.widgets.LevelBadge
 import com.petbattle.features.pet.presentation.widgets.MenuTab
 import com.petbattle.features.pet.presentation.widgets.PetNameDialog
 import com.petbattle.features.pet.presentation.widgets.StatsPanel
+import com.petbattle.shared_features.biomes.domain.isPlayable
 import com.petbattle.shared_features.biomes.presentation.label
 import com.petbattle.shared_features.pet_combat.domain.PetCombatStatsRules
 import com.petbattle.shared_features.pet_food.presentation.label
@@ -190,6 +191,7 @@ fun PetScreen(controller: PetController, onDefend: () -> Unit) {
             onPickBiome = { picked ->
                 menuOpen = false
                 when {
+                    !picked.isPlayable -> feedback = "${picked.label} estará disponible próximamente"
                     current.isUnlocked(picked) -> controller.enterBiome(picked)
                     controller.buyBiome(picked) -> feedback = "¡Has desbloqueado ${picked.label.lowercase()}!"
                     else -> feedback = "Te faltan ${GameRules.BIOME_PRICE - current.gold} de oro para " +

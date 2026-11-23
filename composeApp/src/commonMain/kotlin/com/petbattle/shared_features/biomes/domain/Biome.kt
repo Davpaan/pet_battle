@@ -29,3 +29,9 @@ enum class Biome {
     /** Costa de acantilados. */
     coast,
 }
+
+/**
+ * Biomas que ya se pueden jugar: los que tienen su fondo por capas (cielo que se desplaza,
+ * fondo y suelo). El resto aparecen como "próximamente": no se pueden comprar ni visitar.
+ */
+val Biome.isPlayable: Boolean get() = this == Biome.grassland || this == Biome.woodland
