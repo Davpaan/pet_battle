@@ -11,14 +11,24 @@ data class EnemyBurn(
     val byPetId: String,
 )
 
+/** Tipo de enemigo: cambia cómo se ve y se mueve, no sus reglas de combate. */
+enum class EnemyKind {
+    /** Se arrastra por el camino. */
+    worm,
+
+    /** Vuela sobre el camino; aparece cuando los enemigos llegan a nivel alto. */
+    butterfly,
+}
+
 /**
- * Un enemigo de una partida de defensa: su nivel, sus puntos de vida restantes y los
- * efectos que tiene activos (quemaduras, ralentización). Inmutable: cada cambio
+ * Un enemigo de una partida de defensa: su tipo, su nivel, sus puntos de vida restantes y
+ * los efectos que tiene activos (quemaduras, ralentización). Inmutable: cada cambio
  * devuelve un enemigo nuevo.
  */
 data class EnemyEntity(
     val level: Int,
     val hp: Double,
+    val kind: EnemyKind = EnemyKind.worm,
     val burns: List<EnemyBurn> = emptyList(),
     /** Multiplicador de velocidad mientras está ralentizado (1 = velocidad normal). */
     val slowFactor: Double = 1.0,
@@ -93,9 +103,9 @@ data class EnemyEntity(
         fun maxHpFor(level: Int) = HP_PER_LEVEL * level
 
         /** Un enemigo nuevo de nivel [level] (1 es el más débil) con la salud completa. */
-        fun spawn(level: Int): EnemyEntity {
+        fun spawn(level: Int, kind: EnemyKind = EnemyKind.worm): EnemyEntity {
             val l = maxOf(level, MIN_LEVEL)
-            return EnemyEntity(level = l, hp = maxHpFor(l))
+            return EnemyEntity(level = l, hp = maxHpFor(l), kind = kind)
         }
     }
 }

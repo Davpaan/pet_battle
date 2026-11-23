@@ -65,6 +65,8 @@ import com.petbattle.features.defense.presentation.game.DefenseSprites
 import com.petbattle.features.defense.presentation.game.TextPainter
 import com.petbattle.features.defense.presentation.game.drawDefense
 import com.petbattle.resources.Res
+import com.petbattle.features.defense.domain.entities.EnemyKind
+import com.petbattle.resources.enemy_butterfly
 import com.petbattle.resources.enemy_slime
 import com.petbattle.resources.map_jungle_camp
 import com.petbattle.resources.skill_air
@@ -161,7 +163,10 @@ private fun rememberDefenseSprites(): DefenseSprites {
     val pets: Map<PetSpecies, ImageBitmap> = PetSpecies.entries.associateWith { imageResource(it.sheet) }
     return DefenseSprites(
         map = imageResource(Res.drawable.map_jungle_camp),
-        slime = imageResource(Res.drawable.enemy_slime),
+        enemies = mapOf(
+            EnemyKind.worm to imageResource(Res.drawable.enemy_slime),
+            EnemyKind.butterfly to imageResource(Res.drawable.enemy_butterfly),
+        ),
         skills = mapOf(
             PetElement.fire to imageResource(Res.drawable.skill_fire),
             PetElement.water to imageResource(Res.drawable.skill_water),

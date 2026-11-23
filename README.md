@@ -3,7 +3,7 @@
 Port a **Kotlin Multiplatform + Compose Multiplatform** del juego Mini Pou
 (Flutter): una mascota virtual con 14 especies de pájaro y un modo
 **defender la torre** donde las mascotas que has criado combaten contra
-gusanos usando la habilidad de su elemento.
+gusanos (y, desde el nivel 8, mariposas) usando la habilidad de su elemento.
 
 Objetivos: **Android** y **escritorio (JVM)**, probado en Ubuntu/Linux.
 
@@ -95,5 +95,5 @@ Equivalencias con la versión Flutter: Flame → bucle de juego propio con
 freezed/json → `data class` + kotlinx.serialization.
 
 Los sprites (pájaros, habilidades) y el mapa provienen del proyecto
-Flutter, donde se generan con scripts en `tool/`. El gusano enemigo se genera con
-`tools/enemy_worm/enemy_worm.py` a partir de `tools/enemy_worm/worm_source.jpg`.
+Flutter, donde se generan con scripts en `tool/`. Los enemigos (gusano y mariposa) se
+generan con `tools/enemy_sprites/enemy_sheet.py` a partir de los dibujos de esa carpeta.

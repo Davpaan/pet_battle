@@ -25,45 +25,74 @@ import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import com.petbattle.shared_features.pet_species.presentation.BirdSheet
 import com.petbattle.shared_features.pet_status.domain.PetNeedsBalance
 import com.petbattle.features.defense.domain.DefenseBalance
+import com.petbattle.features.defense.domain.entities.EnemyKind
 import kotlin.math.floor
 import kotlin.math.sin
 
 /** Todas las imágenes que necesita la escena de defensa, cargadas una vez por la pantalla. */
 class DefenseSprites(
     val map: ImageBitmap,
-    val slime: ImageBitmap,
+    val enemies: Map<EnemyKind, ImageBitmap>,
     val skills: Map<PetElement, ImageBitmap>,
     val pets: Map<PetSpecies, ImageBitmap>,
 )
 
 /**
- * Disposición de `enemy_slime.png` (el gusano; se genera con tools/enemy_worm): frames de
- * 128x128 mirando a la izquierda, todos con la misma escala y línea del suelo.
+ * Disposición de la hoja de un enemigo (`enemy_slime.png` para el gusano y
+ * `enemy_butterfly.png`; se generan con tools/enemy_sprites): frames de [FRAME] px mirando a
+ * la izquierda, con la misma escala y línea del suelo en todas las poses.
+ * Fila [MOVE_ROW]: movimiento en bucle; [DEATH_ROW]: muerte; [HURT_ROW]: cara de dolor,
+ * que se muestra mientras parpadea tras recibir un golpe.
  */
-object SlimeSheet {
-    const val FRAME = 128
-    const val MOVE_ROW = 0
-    const val MOVE_FRAMES = 5
+class EnemySheet(
+    val moveFrames: Int,
+    /** Segundos por frame de movimiento a la velocidad base. */
+    val moveStep: Double,
+    val deathFrames: Int,
+    val deathStep: Double,
+    /** Línea del suelo dentro del frame. */
+    val groundY: Float,
+    /** Lo más alto del sprite al moverse (la barra de vida va encima). */
+    val bodyTop: Float,
+    /** Centro del cuerpo dentro del frame: adonde apuntan los disparos y van los efectos. */
+    val bodyCenterY: Float,
+    /** Altura extra a la que se dibuja al moverse, en px de mapa (los que vuelan). */
+    val lift: Float = 0f,
+) {
+    /** Altura del centro del cuerpo sobre el suelo al moverse, en px de mapa. */
+    val bodyHeight get() = (groundY - bodyCenterY) * SCALE + lift
 
-    /** Segundos por frame al arrastrarse a la velocidad base. */
-    const val MOVE_STEP = 0.13
-    const val DEATH_ROW = 1
-    const val DEATH_FRAMES = 4
-    const val DEATH_STEP = 0.14
+    companion object {
+        const val FRAME = 128
+        const val MOVE_ROW = 0
+        const val DEATH_ROW = 1
+        const val HURT_ROW = 2
+        const val SCALE = 0.5f
+        const val SIZE = FRAME * SCALE
 
-    /** Cara de susto que se muestra mientras parpadea tras recibir un golpe. */
-    const val HURT_ROW = 2
+        /** Los dibujos no son pixel art a escala 1: se suavizan al reducirlos, como los pájaros. */
+        val FILTER = FilterQuality.Medium
 
-    /** Línea del suelo dentro del frame (donde el gusano toca el suelo). */
-    const val GROUND_Y = 116f
+        /**
+         * Centro del cuerpo para el que están pensadas las capas de estado de las habilidades
+         * (quemado, ralentizado...): el del slime original, que coincide con el del gusano.
+         */
+        const val OVERLAY_BODY_CENTER_Y = 84f
 
-    /** Altura del frame donde empieza el cuerpo (lo más alto de la cabeza al arrastrarse). */
-    const val BODY_TOP = 52f
-    const val SCALE = 0.5f
-    const val SIZE = FRAME * SCALE
+        val worm = EnemySheet(
+            moveFrames = 5, moveStep = 0.13, deathFrames = 4, deathStep = 0.14,
+            groundY = 116f, bodyTop = 52f, bodyCenterY = 84f,
+        )
+        val butterfly = EnemySheet(
+            moveFrames = 5, moveStep = 0.09, deathFrames = 3, deathStep = 0.16,
+            groundY = 120f, bodyTop = 4f, bodyCenterY = 64f, lift = 14f,
+        )
 
-    /** El dibujo no es pixel art a escala 1: se suaviza al reducirlo, como los pájaros. */
-    val FILTER = FilterQuality.Medium
+        fun of(kind: EnemyKind) = when (kind) {
+            EnemyKind.worm -> worm
+            EnemyKind.butterfly -> butterfly
+        }
+    }
 }
 
 /** Disposición de `skill_<element>.png`: 4x3 frames de 32x32. */
@@ -121,8 +150,8 @@ fun DrawScope.drawDefense(game: DefenseGame, sprites: DefenseSprites, text: Text
     val drawables = buildList<Pair<Float, () -> Unit>> {
         game.defenders.values.forEach { d -> add(d.position.y to { drawDefender(d, game, sprites, text) }) }
         game.enemies.forEach { e -> add(e.position.y to { drawEnemy(e, sprites, text) }) }
-        game.effects.filter { it.kind == AnimEffect.Kind.SlimeDeath }.forEach { fx ->
-            add(fx.position.y to { drawSlimeDeath(fx, sprites) })
+        game.effects.filter { it.kind == AnimEffect.Kind.EnemyDeath }.forEach { fx ->
+            add(fx.position.y to { drawEnemyDeath(fx, sprites) })
         }
     }.sortedBy { it.first }
     drawables.forEach { it.second() }
@@ -194,21 +223,26 @@ private fun DrawScope.drawDefender(d: Defender, game: DefenseGame, sprites: Defe
 }
 
 private fun DrawScope.drawEnemy(e: Enemy, sprites: DefenseSprites, text: TextPainter) {
-    val size = SlimeSheet.SIZE
-    val topLeft = Offset(e.position.x - size / 2, e.position.y - SlimeSheet.GROUND_Y * SlimeSheet.SCALE)
-    drawOval(Color(0x40000000), Offset(e.position.x - size * 0.4f, e.position.y - 5f), Size(size * 0.8f, 10f))
-    // Al recibir un golpe muestra la cara de susto en lugar del ciclo de arrastrarse.
+    val sheet = EnemySheet.of(e.entity.kind)
+    val size = EnemySheet.SIZE
+    // Los que vuelan se dibujan por encima del suelo (más su vaivén); la sombra se queda abajo.
+    val topLeft = Offset(e.position.x - size / 2, e.position.y - sheet.groundY * EnemySheet.SCALE - sheet.lift - e.hover)
+    val shadowW = if (sheet.lift > 0) size * 0.45f else size * 0.8f
+    drawOval(Color(0x40000000), Offset(e.position.x - shadowW / 2, e.position.y - 5f), Size(shadowW, 10f))
+    // Al recibir un golpe muestra la cara de dolor en lugar del ciclo de movimiento.
     val hurt = e.flash > 0
-    val col = if (hurt) 0 else floor(e.animT / SlimeSheet.MOVE_STEP).toInt().mod(SlimeSheet.MOVE_FRAMES)
+    val col = if (hurt) 0 else floor(e.animT / sheet.moveStep).toInt().mod(sheet.moveFrames)
     drawSpriteFrame(
-        sprites.slime, SlimeSheet.FRAME, col, if (hurt) SlimeSheet.HURT_ROW else SlimeSheet.MOVE_ROW, topLeft, size,
-        flipX = e.facingRight, filterQuality = SlimeSheet.FILTER,
+        sprites.enemies.getValue(e.entity.kind), EnemySheet.FRAME, col,
+        if (hurt) EnemySheet.HURT_ROW else EnemySheet.MOVE_ROW, topLeft, size,
+        flipX = e.facingRight, filterQuality = EnemySheet.FILTER,
     )
-    // Las capas de efectos ocupan el mismo frame que el gusano, cuyo cuerpo cae en la misma
-    // zona relativa que el del slime original, así que encajan.
+    // Las capas de efectos ocupan el mismo frame que el enemigo; se desplazan para que su
+    // centro caiga sobre el cuerpo de cada tipo.
+    val overlayTopLeft = topLeft + Offset(0f, (sheet.bodyCenterY - EnemySheet.OVERLAY_BODY_CENTER_Y) * EnemySheet.SCALE)
     fun overlay(element: PetElement, step: Double) = drawSpriteFrame(
         sprites.skills.getValue(element), SkillSheet.FRAME, floor(e.effectT / step).toInt() % 4,
-        SkillSheet.STATUS_ROW, topLeft, size, flipX = e.facingRight,
+        SkillSheet.STATUS_ROW, overlayTopLeft, size, flipX = e.facingRight,
     )
     if (e.entity.isSlowed) overlay(PetElement.water, 0.15)
     if (e.entity.isBurning) overlay(PetElement.fire, 0.1)
@@ -216,19 +250,22 @@ private fun DrawScope.drawEnemy(e: Enemy, sprites: DefenseSprites, text: TextPai
 
     // Nivel + barra de salud sobre la cabeza.
     val barW = 40f
-    val bar = Offset(e.position.x - barW / 2, topLeft.y + SlimeSheet.BODY_TOP * SlimeSheet.SCALE - 10)
+    val bar = Offset(e.position.x - barW / 2, topLeft.y + sheet.bodyTop * EnemySheet.SCALE - 10)
     drawRect(Color(0xAA000000), bar, Size(barW, 6f))
     drawRect(Color(0xFF6CE07A), bar + Offset(1f, 1f), Size((barW - 2) * e.entity.healthFraction.toFloat(), 4f))
     text.draw(this, "Nv.${e.entity.level}", Offset(e.position.x, bar.y - 1), sizePx = 13f)
 }
 
-private fun DrawScope.drawSlimeDeath(fx: AnimEffect, sprites: DefenseSprites) {
-    val size = SlimeSheet.SIZE
-    val topLeft = Offset(fx.position.x - size / 2, fx.position.y - SlimeSheet.GROUND_Y * SlimeSheet.SCALE)
-    // El último frame (el charco) se desvanece en vez de desaparecer de golpe.
+private fun DrawScope.drawEnemyDeath(fx: AnimEffect, sprites: DefenseSprites) {
+    val kind = fx.enemyKind ?: return
+    val sheet = EnemySheet.of(kind)
+    val size = EnemySheet.SIZE
+    // La muerte ocurre en el suelo: la mariposa cae y se posa en la hierba.
+    val topLeft = Offset(fx.position.x - size / 2, fx.position.y - sheet.groundY * EnemySheet.SCALE)
+    // El último frame se desvanece en vez de desaparecer de golpe.
     val fade = ((fx.age - (fx.frames - 1) * fx.stepTime) / fx.stepTime).toFloat().coerceIn(0f, 1f)
     drawSpriteFrame(
-        sprites.slime, SlimeSheet.FRAME, fx.frame, SlimeSheet.DEATH_ROW, topLeft, size,
-        flipX = fx.flipX, alpha = 1f - fade, filterQuality = SlimeSheet.FILTER,
+        sprites.enemies.getValue(kind), EnemySheet.FRAME, fx.frame, EnemySheet.DEATH_ROW, topLeft, size,
+        flipX = fx.flipX, alpha = 1f - fade, filterQuality = EnemySheet.FILTER,
     )
 }

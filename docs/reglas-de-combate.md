@@ -27,8 +27,8 @@ Fuentes en el código:
    (se ve semitransparente) y el siguiente toque en hierba lo mueve. No aparecen enemigos.
 2. **"Empezar".** Se activa con al menos un pájaro colocado. Al pulsarlo desaparece la
    interfaz de colocación y empieza el combate; ya no se puede mover a nadie.
-3. **Combate.** Aparece una babosa cada **2,2 s**, alternando entre los caminos del mapa.
-   Cada babosa que llega a la salida quita **1 vida** de **10**. Con 0 vidas se pierde.
+3. **Combate.** Aparece un enemigo cada **2,2 s**, alternando entre los caminos del mapa.
+   Cada enemigo que llega a la salida quita **1 vida** de **10**. Con 0 vidas se pierde.
    No hay victoria: la partida dura lo que se aguante.
 4. **Reintentar** vuelve a la preparación con los pájaros donde estaban.
 
@@ -43,8 +43,12 @@ La dificultad depende solo del **tiempo de combate**:
 | Nivel | Empiezan en nivel 1 y suben **+1 cada 20 s** (solo afecta a los que nacen desde ese momento). |
 | Vida | **1,2 × nivel** (nivel 1 = 1,2; nivel 5 = 6). |
 | Velocidad | Base 36 px/s, **+20% cada 10 s** (lineal), para todos los del mapa a la vez. |
+| Tipo | **Gusanos** hasta el nivel 7. Desde el **nivel 8** (a los 140 s), cada enemigo nuevo tiene un **50%** de ser una **mariposa**. |
 
-Los enemigos no atacan a las mascotas: solo caminan hacia la salida.
+Gusanos y mariposas siguen las mismas reglas de vida, velocidad y recompensa; la mariposa
+solo cambia de aspecto: vuela sobre el camino y, al morir, cae y se posa en la hierba.
+
+Los enemigos no atacan a las mascotas: solo avanzan hacia la salida.
 
 ## 3. Stats de combate
 
@@ -82,7 +86,7 @@ Daño, velocidad y confianza tienen un **total** (el máximo, según el nivel) y
 - Con el daño total, una mascota de nivel N mata de un golpe a enemigos de nivel ≤ N.
 - **Sin energía está agotada** y no ataca, aunque digestión y clima estén bien.
 - La confianza **es** la probabilidad de acertar cada disparo.
-- Las mascotas disparan solas a la babosa **más adelantada** dentro de **su rango**.
+- Las mascotas disparan solas al enemigo **más adelantado** dentro de **su rango**.
 - **Cada disparo** gasta **1 de descanso**, resta **0,5** de higiene y de plumaje, y afila
   **+0,5** el pico y las garras (ver sección 5).
 
@@ -103,7 +107,7 @@ Las tablas de habilidades por tipo y por especie+tipo existen pero están vacía
 
 ## 4. Recompensas y progresión
 
-- Cada babosa derrotada da **1 XP** a la mascota que la remata (también por quemadura) y
+- Cada enemigo derrotado da **1 XP** a la mascota que la remata (también por quemadura) y
   **1 moneda de oro** al jugador.
 - Subir del nivel n al n+1 cuesta **10 × (n + 1)** XP (10, 20, 30…). La XP vuelve a 0 al
   subir. Nivel máximo: **10**. El nuevo daño se aplica al instante, en mitad del combate.

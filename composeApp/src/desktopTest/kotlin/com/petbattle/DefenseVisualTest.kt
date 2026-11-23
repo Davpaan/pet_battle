@@ -10,8 +10,13 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.use
+import com.petbattle.features.defense.domain.RoutePath
+import com.petbattle.features.defense.domain.entities.EnemyEntity
+import com.petbattle.features.defense.domain.entities.EnemyKind
 import com.petbattle.features.defense.domain.maps.jungleCampMap
+import com.petbattle.features.defense.presentation.game.AnimEffect
 import com.petbattle.features.defense.presentation.game.DefenseGame
+import com.petbattle.features.defense.presentation.game.Enemy
 import com.petbattle.features.defense.presentation.game.DefenseSprites
 import com.petbattle.features.defense.presentation.game.TextPainter
 import com.petbattle.features.defense.presentation.game.drawDefense
@@ -40,7 +45,7 @@ class DefenseVisualTest {
 
     private val sprites = DefenseSprites(
         map = img("map_jungle_camp"),
-        slime = img("enemy_slime"),
+        enemies = mapOf(EnemyKind.worm to img("enemy_slime"), EnemyKind.butterfly to img("enemy_butterfly")),
         skills = PetElement.entries.associateWith { img("skill_${it.name}") },
         pets = PetSpecies.adults.associateWith { sp ->
             img("pet_" + sp.name.replace(Regex("([A-Z])")) { "_" + it.value.lowercase() })
@@ -100,21 +105,53 @@ class DefenseVisualTest {
         assertTrue(game.defenders.size == 4, "all four pets placed")
         game.start()
 
-        val out = File("build/visual").apply { mkdirs() }
         for ((i, seconds) in listOf(6, 14, 22).withIndex()) {
             while (game.time < seconds) game.update(1.0 / 60)
-            ImageComposeScene(1528, 814).use { scene ->
-                scene.setContent {
-                    val text = TextPainter(rememberTextMeasurer())
-                    Canvas(Modifier.fillMaxSize()) {
-                        scale(size.width / game.map.width, Offset.Zero) { drawDefense(game, sprites, text) }
-                    }
-                }
-                val png = scene.render().encodeToData(EncodedImageFormat.PNG)!!.bytes
-                File(out, "defense-$i.png").writeBytes(png)
-            }
+            render(game, "defense-$i.png")
         }
         assertTrue(shots > 0, "pets fired")
         assertTrue(killed > 0, "enemies were defeated")
+    }
+
+    @Test
+    fun rendersButterfliesFlyingAndDying() {
+        val game = DefenseGame(jungleCampMap, {}, {}, Random(3))
+        val pet = PetEntity.newborn("Fuego", PetSpecies.cardinal, 0)
+        game.updatePets(listOf(pet.copy(progression = pet.progression.copy(level = 1))))
+        game.placePetAt(Offset(1262f, 539f))
+        game.start()
+        // Mariposas de nivel 8 soltadas cada poco, para que queden repartidas por la ruta
+        // junto a los gusanos que salen solos.
+        for (route in jungleCampMap.routes.map(::RoutePath)) {
+            repeat(3) { i ->
+                game.enemies += Enemy(route, EnemyEntity.spawn(8, EnemyKind.butterfly), i)
+                repeat(70) { game.update(1.0 / 60) }
+            }
+        }
+        // Una muriendo en el suelo, a mitad de animación.
+        game.effects += AnimEffect.enemyDeath(EnemyKind.butterfly, Offset(760f, 700f), flip = false)
+        repeat(12) { game.update(1.0 / 60) }
+
+        val butterfly = game.enemies.first { it.entity.kind == EnemyKind.butterfly }
+        val worm = game.enemies.first { it.entity.kind == EnemyKind.worm }
+        // Vuela: su cuerpo (adonde apuntan los disparos) queda más alto que el del gusano.
+        val flyHeight = butterfly.position.y - butterfly.bodyCenter.y
+        val wormHeight = worm.position.y - worm.bodyCenter.y
+        assertTrue(flyHeight > wormHeight + 20, "la mariposa vuela ($flyHeight vs $wormHeight)")
+        render(game, "defense-butterflies.png")
+    }
+
+    private fun render(game: DefenseGame, name: String) {
+        val out = File("build/visual").apply { mkdirs() }
+        ImageComposeScene(1528, 814).use { scene ->
+            scene.setContent {
+                val text = TextPainter(rememberTextMeasurer())
+                Canvas(Modifier.fillMaxSize()) {
+                    scale(size.width / game.map.width, Offset.Zero) { drawDefense(game, sprites, text) }
+                }
+            }
+            val png = scene.render().encodeToData(EncodedImageFormat.PNG)!!.bytes
+            File(out, name).writeBytes(png)
+        }
     }
 }
