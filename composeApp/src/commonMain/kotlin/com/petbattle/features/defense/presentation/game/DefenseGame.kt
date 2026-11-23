@@ -525,7 +525,7 @@ class AnimEffect(
             AnimEffect(Kind.SkillImpact, element, at, false, frames = 4, stepTime = 0.06)
 
         fun slimeDeath(at: Offset, flip: Boolean) =
-            AnimEffect(Kind.SlimeDeath, null, at, flip, frames = 6, stepTime = 0.07)
+            AnimEffect(Kind.SlimeDeath, null, at, flip, frames = SlimeSheet.DEATH_FRAMES, stepTime = SlimeSheet.DEATH_STEP)
     }
 }
 

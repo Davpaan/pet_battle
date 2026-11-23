@@ -2,9 +2,7 @@ package com.petbattle.features.defense.presentation.game
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
@@ -38,17 +36,34 @@ class DefenseSprites(
     val pets: Map<PetSpecies, ImageBitmap>,
 )
 
-/** Disposición de `enemy_slime.png`: frames de 32x32, mirando a la izquierda. */
+/**
+ * Disposición de `enemy_slime.png` (el gusano; se genera con tools/enemy_worm): frames de
+ * 128x128 mirando a la izquierda, todos con la misma escala y línea del suelo.
+ */
 object SlimeSheet {
-    const val FRAME = 32
+    const val FRAME = 128
     const val MOVE_ROW = 0
-    const val MOVE_FRAMES = 8
-    const val DEATH_ROW = 1
+    const val MOVE_FRAMES = 5
 
-    /** Línea del suelo dentro del frame (donde el slime toca el suelo). */
-    const val GROUND_Y = 29f
-    const val SCALE = 2f
+    /** Segundos por frame al arrastrarse a la velocidad base. */
+    const val MOVE_STEP = 0.13
+    const val DEATH_ROW = 1
+    const val DEATH_FRAMES = 4
+    const val DEATH_STEP = 0.14
+
+    /** Cara de susto que se muestra mientras parpadea tras recibir un golpe. */
+    const val HURT_ROW = 2
+
+    /** Línea del suelo dentro del frame (donde el gusano toca el suelo). */
+    const val GROUND_Y = 116f
+
+    /** Altura del frame donde empieza el cuerpo (lo más alto de la cabeza al arrastrarse). */
+    const val BODY_TOP = 52f
+    const val SCALE = 0.5f
     const val SIZE = FRAME * SCALE
+
+    /** El dibujo no es pixel art a escala 1: se suaviza al reducirlo, como los pájaros. */
+    val FILTER = FilterQuality.Medium
 }
 
 /** Disposición de `skill_<element>.png`: 4x3 frames de 32x32. */
@@ -86,7 +101,6 @@ class TextPainter(private val measurer: TextMeasurer) {
     }
 }
 
-private val whiteFlash = ColorFilter.tint(Color.White, BlendMode.SrcAtop)
 
 /** Dibuja toda la escena en coordenadas de mapa (quien llama fija la transformación). */
 fun DrawScope.drawDefense(game: DefenseGame, sprites: DefenseSprites, text: TextPainter) {
@@ -182,13 +196,16 @@ private fun DrawScope.drawDefender(d: Defender, game: DefenseGame, sprites: Defe
 private fun DrawScope.drawEnemy(e: Enemy, sprites: DefenseSprites, text: TextPainter) {
     val size = SlimeSheet.SIZE
     val topLeft = Offset(e.position.x - size / 2, e.position.y - SlimeSheet.GROUND_Y * SlimeSheet.SCALE)
-    drawOval(Color(0x40000000), Offset(e.position.x - size * 0.31f, e.position.y - 5f), Size(size * 0.62f, 10f))
-    val col = floor(e.animT / 0.1).toInt().mod(SlimeSheet.MOVE_FRAMES)
+    drawOval(Color(0x40000000), Offset(e.position.x - size * 0.4f, e.position.y - 5f), Size(size * 0.8f, 10f))
+    // Al recibir un golpe muestra la cara de susto en lugar del ciclo de arrastrarse.
+    val hurt = e.flash > 0
+    val col = if (hurt) 0 else floor(e.animT / SlimeSheet.MOVE_STEP).toInt().mod(SlimeSheet.MOVE_FRAMES)
     drawSpriteFrame(
-        sprites.slime, SlimeSheet.FRAME, col, SlimeSheet.MOVE_ROW, topLeft, size,
-        flipX = e.facingRight, colorFilter = if (e.flash > 0) whiteFlash else null,
+        sprites.slime, SlimeSheet.FRAME, col, if (hurt) SlimeSheet.HURT_ROW else SlimeSheet.MOVE_ROW, topLeft, size,
+        flipX = e.facingRight, filterQuality = SlimeSheet.FILTER,
     )
-    // Las capas de efectos comparten el frame de 32px del slime, así que encajan.
+    // Las capas de efectos ocupan el mismo frame que el gusano, cuyo cuerpo cae en la misma
+    // zona relativa que el del slime original, así que encajan.
     fun overlay(element: PetElement, step: Double) = drawSpriteFrame(
         sprites.skills.getValue(element), SkillSheet.FRAME, floor(e.effectT / step).toInt() % 4,
         SkillSheet.STATUS_ROW, topLeft, size, flipX = e.facingRight,
@@ -199,7 +216,7 @@ private fun DrawScope.drawEnemy(e: Enemy, sprites: DefenseSprites, text: TextPai
 
     // Nivel + barra de salud sobre la cabeza.
     val barW = 40f
-    val bar = Offset(e.position.x - barW / 2, topLeft.y + 6)
+    val bar = Offset(e.position.x - barW / 2, topLeft.y + SlimeSheet.BODY_TOP * SlimeSheet.SCALE - 10)
     drawRect(Color(0xAA000000), bar, Size(barW, 6f))
     drawRect(Color(0xFF6CE07A), bar + Offset(1f, 1f), Size((barW - 2) * e.entity.healthFraction.toFloat(), 4f))
     text.draw(this, "Nv.${e.entity.level}", Offset(e.position.x, bar.y - 1), sizePx = 13f)
@@ -208,5 +225,10 @@ private fun DrawScope.drawEnemy(e: Enemy, sprites: DefenseSprites, text: TextPai
 private fun DrawScope.drawSlimeDeath(fx: AnimEffect, sprites: DefenseSprites) {
     val size = SlimeSheet.SIZE
     val topLeft = Offset(fx.position.x - size / 2, fx.position.y - SlimeSheet.GROUND_Y * SlimeSheet.SCALE)
-    drawSpriteFrame(sprites.slime, SlimeSheet.FRAME, fx.frame, SlimeSheet.DEATH_ROW, topLeft, size, flipX = fx.flipX)
+    // El último frame (el charco) se desvanece en vez de desaparecer de golpe.
+    val fade = ((fx.age - (fx.frames - 1) * fx.stepTime) / fx.stepTime).toFloat().coerceIn(0f, 1f)
+    drawSpriteFrame(
+        sprites.slime, SlimeSheet.FRAME, fx.frame, SlimeSheet.DEATH_ROW, topLeft, size,
+        flipX = fx.flipX, alpha = 1f - fade, filterQuality = SlimeSheet.FILTER,
+    )
 }
