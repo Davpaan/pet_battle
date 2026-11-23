@@ -43,7 +43,7 @@ La dificultad depende solo del **tiempo de combate**:
 | Nivel | Empiezan en nivel 1 y suben **+1 cada 20 s** (solo afecta a los que nacen desde ese momento). |
 | Vida | **1,2 × nivel** (nivel 1 = 1,2; nivel 5 = 6). |
 | Velocidad | Base 36 px/s, **+20% cada 10 s** (lineal), para todos los del mapa a la vez. |
-| Tipo | **Gusanos** hasta el nivel 7. Desde el **nivel 8** (a los 140 s), cada enemigo nuevo tiene un **50%** de ser una **mariposa**. |
+| Tipo | **Gusanos** hasta el nivel 7. Desde el **nivel 8** (a los 140 s) dejan de salir gusanos y solo salen **mariposas**. |
 
 Gusanos y mariposas siguen las mismas reglas de vida, velocidad y recompensa; la mariposa
 solo cambia de aspecto: vuela sobre el camino y, al morir, cae y se posa en la hierba.

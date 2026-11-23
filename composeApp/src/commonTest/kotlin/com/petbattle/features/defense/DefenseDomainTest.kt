@@ -33,17 +33,13 @@ class DefenseDomainTest {
         assertEquals(listOf(1, 1, 2, 4), listOf(0.0, 19.9, 20.0, 65.0).map(DefenseRules::enemyLevel))
     }
 
-    @Test fun butterfliesAppearFromLevel8MixedWithWorms() {
-        // Antes del nivel 8 siempre gusanos, salga lo que salga en el dado.
-        assertFalse(DefenseRules.butterfliesUnlocked(7))
-        assertEquals(EnemyKind.worm, DefenseRules.enemyKind(7, 0.0))
-        // Desde el nivel 8, mitad y mitad.
-        assertTrue(DefenseRules.butterfliesUnlocked(8))
-        assertEquals(EnemyKind.butterfly, DefenseRules.enemyKind(8, 0.49))
-        assertEquals(EnemyKind.worm, DefenseRules.enemyKind(8, 0.5))
-        assertEquals(EnemyKind.butterfly, DefenseRules.enemyKind(12, 0.1))
-        // El nivel 8 llega a los 140 s de partida.
-        assertEquals(8, DefenseRules.enemyLevel(140.0))
+    @Test fun butterfliesReplaceWormsFromLevel8() {
+        // Gusanos hasta el nivel 7; desde el 8, solo mariposas.
+        assertEquals(List(7) { EnemyKind.worm }, (1..7).map(DefenseRules::enemyKind))
+        assertEquals(List(5) { EnemyKind.butterfly }, (8..12).map(DefenseRules::enemyKind))
+        // El nivel 8 llega a los 140 s de partida: el cambio ocurre justo ahí.
+        assertEquals(EnemyKind.worm, DefenseRules.enemyKind(DefenseRules.enemyLevel(139.9)))
+        assertEquals(EnemyKind.butterfly, DefenseRules.enemyKind(DefenseRules.enemyLevel(140.0)))
         // Una mariposa tiene las mismas reglas de vida que un gusano de su nivel.
         val b = EnemyEntity.spawn(8, EnemyKind.butterfly)
         assertEquals(EnemyKind.butterfly, b.kind)
