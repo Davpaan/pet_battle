@@ -57,24 +57,27 @@ class DesktopMusicPlayer : MusicPlayer {
     }
 
     private suspend fun load(track: MusicTrack): Clip? = try {
-        val bytes = Res.readBytes(track.path)
-        AudioSystem.getAudioInputStream(ByteArrayInputStream(bytes)).use { encoded ->
-            // El OGG se decodifica (vorbisspi) a PCM de 16 bits; el Clip necesita la longitud
-            // exacta, así que se decodifica entero en memoria antes de abrirlo.
-            val src = encoded.format
-            val pcm = AudioFormat(
-                AudioFormat.Encoding.PCM_SIGNED, src.sampleRate, 16, src.channels,
-                src.channels * 2, src.sampleRate, false,
-            )
-            val decoded = AudioSystem.getAudioInputStream(pcm, encoded).use { it.readBytes() }
-            val frames = decoded.size.toLong() / pcm.frameSize
-            AudioSystem.getClip().apply {
-                open(AudioInputStream(ByteArrayInputStream(decoded), pcm, frames))
-            }
-        }
+        val pcm = decodeToPcm(Res.readBytes(track.path))
+        AudioSystem.getClip().apply { open(pcm) }
     } catch (e: Exception) {
         // Equipos sin dispositivo de audio: el juego sigue sin música.
         println("No se pudo cargar la música ${track.path}: $e")
         null
     }
 }
+
+/**
+ * Decodifica un OGG Vorbis (vorbisspi) a PCM de 16 bits entero en memoria: el Clip necesita la
+ * longitud exacta. Falla con frecuencias que el decodificador no admite (p. ej. 96 kHz), por eso
+ * las pistas van a 44,1 kHz.
+ */
+internal fun decodeToPcm(oggBytes: ByteArray): AudioInputStream =
+    AudioSystem.getAudioInputStream(ByteArrayInputStream(oggBytes)).use { encoded ->
+        val src = encoded.format
+        val pcm = AudioFormat(
+            AudioFormat.Encoding.PCM_SIGNED, src.sampleRate, 16, src.channels,
+            src.channels * 2, src.sampleRate, false,
+        )
+        val decoded = AudioSystem.getAudioInputStream(pcm, encoded).use { it.readBytes() }
+        AudioInputStream(ByteArrayInputStream(decoded), pcm, decoded.size.toLong() / pcm.frameSize)
+    }
