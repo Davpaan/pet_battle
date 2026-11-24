@@ -26,11 +26,13 @@ private class AgslWindPainter(image: ImageBitmap, wind: ImageBitmap) : WindPaint
     }
     private val brush = ShaderBrush(shader)
 
-    override fun brush(srcLeft: Float, srcTop: Float, srcPerDst: Float, time: Float): ShaderBrush {
-        // Los uniforms se leen al dibujar: basta con actualizarlos en el mismo shader.
+    override fun brush(srcLeft: Float, srcTop: Float, srcPerDst: Float, time: Float, grassFrontOf: Float): ShaderBrush {
+        // Cada cambio de uniform crea una instancia nativa nueva del shader, y cada dibujo
+        // conserva la que había al dibujarse: se puede reutilizar el mismo shader en un frame.
         shader.setFloatUniform("srcOrigin", srcLeft, srcTop)
         shader.setFloatUniform("srcPerDst", srcPerDst)
         shader.setFloatUniform("time", time)
+        shader.setFloatUniform("grassFrontOf", grassFrontOf)
         return brush
     }
 

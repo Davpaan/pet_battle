@@ -80,6 +80,9 @@ private const val FALLBACK_TERRAIN_SOLID = 0.82f
 /** Cuánto encoge un pájaro por cada fracción del lienzo que se aleja hacia el fondo (perspectiva). */
 private const val PERSPECTIVE = 1.6f
 
+/** Muestras a lo ancho del lienzo del borde del suelo en cuesta (ver BiomeSceneState.layout). */
+private const val GROUND_EDGE_SAMPLES = 48
+
 /** Distancia mínima en profundidad (0..1) para que dos pájaros posados no ocupen el mismo sitio. */
 private const val DEPTH_GAP = 0.35
 
@@ -114,7 +117,7 @@ fun BiomeScene(
         val windMap = it.wind?.let { res -> imageResource(res) }
         val wind = remember(terrain, windMap) { windMap?.let { map -> createWindPainter(terrain, map) } }
         val filter = if (it.smooth) FilterQuality.Medium else FilterQuality.None
-        BackdropLayers(imageResource(it.sky), imageResource(it.back), terrain, solid, wind, filter)
+        BackdropLayers(imageResource(it.sky), imageResource(it.back), terrain, solid, wind, filter, it.groundEdge)
     }
     val sheets = PetSpecies.entries.associateWith { imageResource(it.sheet) }
     val eggImage = imageResource(Res.drawable.pet_egg)
@@ -160,7 +163,11 @@ fun BiomeScene(
             size, walkStartInset.toPx(), walkEndInset.toPx(),
             terrainSolid = layers?.terrainSolid ?: FALLBACK_TERRAIN_SOLID,
             imageWidth = ground.width, imageHeight = ground.height,
+            groundEdge = layers?.groundEdge,
         )
+        // Recorte con el que se dibuja el terreno: para repintar su hierba delante de cada una.
+        val wind = layers?.wind
+        val crop = layers?.let { layerCrop(it.terrain, zoom = 1f, shift = 0f) }
         // De atrás adelante: las que están más cerca tapan a las del fondo.
         val ordered = pets.sortedByDescending { state.actors[it.id]?.depth ?: 0.0 }
         val now = systemNowMillis()
@@ -168,6 +175,8 @@ fun BiomeScene(
             val actor = state.actors[pet.id] ?: continue
             if (pet.isEgg) drawEgg(state, actor, pet, eggImage, now)
             else drawActor(state, actor, pet, sheets.getValue(pet.species))
+            // La hierba que nace por delante de ella la tapa (y deja ver entre las briznas).
+            if (wind != null && crop != null) drawGrassInFront(wind, crop, state.time, actor)
         }
         for (pet in ordered) {
             val actor = state.actors[pet.id] ?: continue
@@ -197,6 +206,9 @@ private class Actor(var x: Double, var depth: Double, val phase: Double) {
     var bounceT = -1.0
     val hearts = mutableListOf<Heart>()
     var rect = Rect.Zero
+
+    /** Altura en pantalla del suelo bajo ella en el último frame (aunque vuele). */
+    var groundY = 0f
 
     class Heart(var age: Double = 0.0)
 
@@ -231,14 +243,39 @@ private class BiomeSceneState {
     var walkLeft = 0f
     var walkWidth = 1f
     var frontY = 0f // suelo más cercano (profundidad 0)
-    var backY = 0f // suelo más lejano (profundidad 1): el borde del terreno
+    var backY = 0f // suelo más lejano (profundidad 1) de referencia: el borde del terreno
     var canvasHeight = 1f
 
-    /** Altura del suelo a la profundidad [depth] (0 = delante, 1 = al fondo). */
-    fun groundYAt(depth: Double) = frontY + (backY - frontY) * depth.toFloat()
+    /**
+     * Suelo más lejano a lo ancho del lienzo cuando el terreno está en cuesta: muestras
+     * equiespaciadas de borde a borde (vacío = horizontal, a [backY]).
+     */
+    private var backEdge = FloatArray(0)
+    private var canvasWidth = 1f
 
-    /** Escala por perspectiva a la profundidad [depth]: más lejos, más pequeño. */
-    fun scaleAt(depth: Double) = (1f - (frontY - groundYAt(depth)) / canvasHeight * PERSPECTIVE).coerceAtLeast(0.6f)
+    /** Suelo más lejano en la x de pantalla [screenX]. */
+    private fun backYAt(screenX: Float): Float {
+        if (backEdge.isEmpty()) return backY
+        val f = (screenX / canvasWidth).coerceIn(0f, 1f) * (backEdge.size - 1)
+        val i = f.toInt().coerceAtMost(backEdge.size - 2)
+        return backEdge[i] + (backEdge[i + 1] - backEdge[i]) * (f - i)
+    }
+
+    /** Centro en pantalla de la plaza de una mascota en la posición [x] (0..1) de la zona de paseo. */
+    fun centerXAt(x: Double) = walkLeft + x.toFloat() * walkWidth + slotSide / 2
+
+    /**
+     * Altura del suelo a la profundidad [depth] (0 = delante, 1 = al fondo) en la posición [x]:
+     * entre el suelo de delante y el borde del fondo en esa x, que sigue la cuesta del terreno.
+     */
+    fun groundYAt(depth: Double, x: Double) = frontY + (backYAt(centerXAt(x)) - frontY) * depth.toFloat()
+
+    /**
+     * Escala por perspectiva a la profundidad [depth]: más lejos, más pequeño. Depende solo de
+     * la profundidad (con el borde de referencia), no de la cuesta: en un prado inclinado, una
+     * mascota del fondo se ve igual de lejos a un lado que al otro.
+     */
+    fun scaleAt(depth: Double) = (1f - (frontY - backY) * depth.toFloat() / canvasHeight * PERSPECTIVE).coerceAtLeast(0.6f)
 
     /** Distancia mínima (en fracción de la zona de paseo) entre dos mascotas posadas. */
     var gap = 0.15
@@ -247,20 +284,54 @@ private class BiomeSceneState {
      * Medidas de este frame. [terrainSolid] es la altura (fracción de una imagen de
      * [imageWidth] x [imageHeight]) donde empieza el suelo continuo; se lleva a la pantalla con
      * el mismo recorte con el que se dibuja el fondo, y es el límite del fondo: no lo pisan.
+     * Si el terreno está en cuesta, [groundEdge] (puntos x, y en fracciones de la imagen) es
+     * ese límite a lo ancho, y las mascotas del fondo se posan sobre él.
      */
-    fun layout(size: Size, startInset: Float, endInset: Float, terrainSolid: Float, imageWidth: Int, imageHeight: Int) {
+    fun layout(
+        size: Size,
+        startInset: Float,
+        endInset: Float,
+        terrainSolid: Float,
+        imageWidth: Int,
+        imageHeight: Int,
+        groundEdge: List<Pair<Float, Float>>? = null,
+    ) {
         val raw = min(size.width * 0.3f, size.height * 0.24f)
         slotSide = raw
         val margin = slotSide * 0.1f
         walkLeft = startInset + margin
         walkWidth = max(1f, size.width - startInset - endInset - 2 * margin - slotSide)
         canvasHeight = size.height
+        canvasWidth = size.width
         frontY = size.height * FRONT_GROUND
         val k = max(size.width / imageWidth, size.height / imageHeight)
         val cropTop = (imageHeight - size.height / k) / 2
+        val cropLeft = (imageWidth - size.width / k) / 2
         val terrainTop = (terrainSolid * imageHeight - cropTop) * k
         backY = min(frontY, terrainTop + size.height * TERRAIN_MARGIN)
+        backEdge = if (groundEdge == null || groundEdge.size < 2) {
+            FloatArray(0)
+        } else {
+            FloatArray(GROUND_EDGE_SAMPLES) { i ->
+                val imageX = (size.width * i / (GROUND_EDGE_SAMPLES - 1) / k + cropLeft) / imageWidth
+                val edgeY = interpolate(groundEdge, imageX) * imageHeight
+                min(frontY, (edgeY - cropTop) * k + size.height * TERRAIN_MARGIN)
+            }
+        }
         gap = (slotSide * 0.85f / walkWidth).toDouble()
+    }
+
+    /** y de la polilínea [points] (ordenada por x) en [x]; fuera de sus extremos, el extremo. */
+    private fun interpolate(points: List<Pair<Float, Float>>, x: Float): Float {
+        if (x <= points.first().first) return points.first().second
+        for (i in 1 until points.size) {
+            val (x1, y1) = points[i]
+            if (x <= x1) {
+                val (x0, y0) = points[i - 1]
+                return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+            }
+        }
+        return points.last().second
     }
 
     /** Si es de noche (lo último que dijo la pantalla): descansan todas. */
@@ -416,7 +487,8 @@ private fun timeLeft(ms: Long): String {
 /** Un huevo en su nido: quieto, y en su última hora se balancea porque va a eclosionar. */
 private fun DrawScope.drawEgg(state: BiomeSceneState, a: Actor, pet: PetEntity, image: ImageBitmap, now: Long) {
     val side = state.slotSide * 0.55f * state.scaleAt(a.depth)
-    val groundY = state.groundYAt(a.depth)
+    val groundY = state.groundYAt(a.depth, a.x)
+    a.groundY = groundY
     val slotLeft = state.walkLeft + a.x.toFloat() * state.walkWidth
     val left = slotLeft + (state.slotSide - side) / 2
     val topY = groundY - side
@@ -439,8 +511,9 @@ private fun DrawScope.drawActor(state: BiomeSceneState, a: Actor, pet: PetEntity
     val side = state.slotSide * pet.species.spriteScale * perspective
     val slotLeft = state.walkLeft + a.x.toFloat() * state.walkWidth
     val left = slotLeft + (state.slotSide - side) / 2
-    val groundY = state.groundYAt(a.depth)
-    val flap = if (a.lift > 0.01) sin((state.time + a.phase) * 9).toFloat() * side * 0.03f else 0f
+    val groundY = state.groundYAt(a.depth, a.x)
+    a.groundY = groundY
+    val flap =if (a.lift > 0.01) sin((state.time + a.phase) * 9).toFloat() * side * 0.03f else 0f
     val liftPx = (a.lift.toFloat() * state.slotSide * perspective * 0.35f) + flap * a.lift.toFloat()
     val topY = groundY - side - liftPx
     a.rect = Rect(left, topY, left + side, topY + side)
@@ -567,7 +640,27 @@ class BackdropLayers(
     val wind: WindPainter? = null,
     /** Suavizado al escalar: None para pixel art, Medium para ilustraciones. */
     val filter: FilterQuality = FilterQuality.None,
+    /** Borde del fondo del suelo si está en cuesta (ver BiomeLayers.groundEdge). */
+    val groundEdge: List<Pair<Float, Float>>? = null,
 )
+
+/**
+ * Repinta, sobre la mascota [a] recién dibujada, la hierba del terreno que nace por delante
+ * de su suelo y sobresale por encima: así la tapan las briznas que tiene delante (con el mismo
+ * vaivén del viento). [crop] es el recorte con el que se dibuja el terreno.
+ */
+private fun DrawScope.drawGrassInFront(wind: WindPainter, crop: IntRect, time: Double, a: Actor) {
+    // Algo más ancho que el sprite: el rebote al tocarla lo ensancha hasta un 18%.
+    val rect = a.rect.let { Rect(it.left - it.width * 0.12f, it.top, it.right + it.width * 0.12f, it.bottom + 2f) }
+    if (rect.isEmpty) return
+    val srcPerDst = crop.width.toFloat() / size.width
+    val groundInImage = crop.top + a.groundY * srcPerDst
+    drawRect(
+        wind.brush(crop.left.toFloat(), crop.top.toFloat(), srcPerDst, time.toFloat(), grassFrontOf = groundInImage),
+        topLeft = rect.topLeft,
+        size = rect.size,
+    )
+}
 
 /**
  * Primera fila (fracción de la altura) en la que [image] es casi del todo opaca: donde empieza

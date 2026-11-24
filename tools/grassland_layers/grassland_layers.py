@@ -9,12 +9,14 @@
 #   - Cielo: el juego lo desplaza en horizontal, así que cualquier punto de la franja alta acaba
 #     viéndose. En esa franja, lo que tapaban el fondo y el prado (y los restos verdes u oscuros
 #     de árboles) se sustituye por el degradado del cielo de esa fila, con transición suave.
-#   - Fondo: solo se mece unos píxeles; lo tapado por el prado se rellena con el píxel visible
-#     más cercano de la misma fila, para que no asome la mancha junto a los árboles.
+#   - Fondo: solo se mece unos píxeles; lo tapado por el prado se rellena con el color del
+#     píxel visible más cercano, difuminado, para que no asome la mancha junto a los árboles.
 #
 # Mapa de viento (a 1/4 de resolución, se muestrea suavizado): rojo = cuánto se mecen los
 # árboles (crece con la altura sobre el prado), verde = cuánto ondea la hierba (crece hacia
-# la cámara). El shader de BiomeScene desplaza cada píxel del primer plano según estos pesos.
+# la cámara), azul = cuánto sobresale la hierba (para que tape a los pájaros que tiene
+# detrás). El shader (core/ui/WindShader.kt) desplaza cada píxel del primer plano según estos
+# pesos y usa la altura de la hierba al repintarla delante de cada pájaro.
 #
 # Uso: python grassland_layers.py <carpeta de drawable> [vista_previa.png]
 import os
@@ -82,36 +84,35 @@ sky_img = np.dstack([sky_out, np.full((H, W), 255.0)])
 # ---------------------------------------------------------------- fondo (montañas y lago)
 back_visible = back_opaque & ~ndi.binary_dilation(front_opaque, iterations=3)
 back_out = back.copy()
-# Para cada píxel tapado, el visible más cercano de su fila (a izquierda o derecha).
-idx = np.arange(W)
-for y in range(H):
-    vis = back_visible[y]
-    need = back_opaque[y] & ~vis
-    if not need.any() or not vis.any():
-        continue
-    xs = idx[vis]
-    pos = np.clip(np.searchsorted(xs, idx), 1, len(xs) - 1)
-    left, right = xs[pos - 1], xs[pos]
-    nearest = np.where(np.abs(idx - left) <= np.abs(right - idx), left, right)
-    back_out[y, need, :3] = back[y, nearest[need], :3]
-# Suavizado horizontal solo en lo rellenado, para que no se vean rayas.
+# Cada píxel tapado toma el color del visible más cercano (en cualquier dirección) y luego
+# se difumina: asoman manchas suaves del color de alrededor, no rayas.
+_, (iy, ix) = ndi.distance_transform_edt(~back_visible, return_indices=True)
 filled = back_opaque & ~back_visible
-blur = ndi.uniform_filter1d(back_out[..., :3], 9, axis=1)
-back_out[..., :3] = np.where(filled[..., None], blur, back_out[..., :3])
+nearest = back[iy, ix, :3]
+blur = np.dstack([ndi.gaussian_filter(nearest[..., c], 4) for c in range(3)])
+back_out[..., :3] = np.where(filled[..., None], blur, back[..., :3])
 
 # ---------------------------------------------------------------- mapa de viento
-# Borde superior del prado (y por columna), trazado a mano sobre el dibujo.
+# Borde superior del prado (y por columna), trazado a mano sobre el dibujo. El juego usa los
+# mismos puntos como borde del fondo del suelo (grasslandGroundEdge en BiomeCatalog.kt): si
+# cambian aquí, hay que cambiarlos allí.
 MEADOW_EDGE = [(0, 495), (200, 532), (400, 560), (560, 586), (700, 602), (800, 632),
                (950, 655), (1100, 672), (1284, 690)]
 TREE_SWAY_HEIGHT = 560.0  # altura sobre el prado a la que una copa se mece del todo
+# Cuánto sobresale la hierba (px de imagen) en el borde de abajo; 0 en el borde del prado.
+# Va en el canal azul, dividido entre GRASS_HEIGHT_MAX (el mismo valor que usa el shader).
+GRASS_HEIGHT_FRONT = 40.0
+GRASS_HEIGHT_MAX = 64.0
 ex, ey = zip(*MEADOW_EDGE)
 edge = np.interp(np.arange(W), ex, ey)[None, :]
 Y = np.arange(H)[:, None].astype(float)
+depth = np.clip((Y - edge) / (H - edge), 0, 1)  # 0 = borde del prado, 1 = abajo del todo
 tree_w = np.clip((edge - Y) / TREE_SWAY_HEIGHT, 0, 1) ** 1.2
-grass_w = np.clip((Y - edge) / (H - edge), 0, 1) ** 0.8
+grass_w = depth ** 0.8
 wind = np.zeros((H, W, 3))
 wind[..., 0] = tree_w
 wind[..., 1] = grass_w
+wind[..., 2] = GRASS_HEIGHT_FRONT * depth / GRASS_HEIGHT_MAX
 small = (W // 4, H // 4)
 wind_img = Image.fromarray((wind * 255).round().astype(np.uint8), "RGB").resize(small, Image.BILINEAR)
 

@@ -59,7 +59,23 @@ class BiomeLayers(
     val wind: DrawableResource? = null,
     /** Capas ilustradas (no pixel art): se dibujan suavizadas al escalarlas. */
     val smooth: Boolean = false,
+    /**
+     * Borde del fondo del suelo cuando no es horizontal (un prado en cuesta): puntos (x, y) de
+     * izquierda a derecha, en fracciones de la imagen del terreno. Las mascotas del fondo se
+     * posan sobre esta línea. Si es null, el borde es la primera fila opaca del terreno.
+     */
+    val groundEdge: List<Pair<Float, Float>>? = null,
 )
+
+/**
+ * Borde superior del prado de la pradera (la cuesta sube hacia la izquierda, hasta los
+ * árboles). Mismos puntos que MEADOW_EDGE en tools/grassland_layers/grassland_layers.py
+ * (píxeles de la imagen de 1284x832).
+ */
+private val grasslandGroundEdge = listOf(
+    0 to 495, 200 to 532, 400 to 560, 560 to 586, 700 to 602, 800 to 632,
+    950 to 655, 1100 to 672, 1284 to 690,
+).map { (x, y) -> x / 1284f to y / 832f }
 
 /** Capas del fondo si el bioma las tiene; si no, se dibuja [background] entero. */
 val Biome.backgroundLayers: BiomeLayers?
@@ -70,6 +86,7 @@ val Biome.backgroundLayers: BiomeLayers?
             terrain = Res.drawable.biome_grassland_terrain,
             wind = Res.drawable.biome_grassland_wind,
             smooth = true,
+            groundEdge = grasslandGroundEdge,
         )
         Biome.woodland -> BiomeLayers(
             sky = Res.drawable.biome_woodland_sky,

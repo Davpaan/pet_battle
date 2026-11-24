@@ -20,10 +20,11 @@ private class SkiaWindPainter(image: ImageBitmap, wind: ImageBitmap) : WindPaint
         uniform("windScale", wind.width.toFloat() / image.width, wind.height.toFloat() / image.height)
     }
 
-    override fun brush(srcLeft: Float, srcTop: Float, srcPerDst: Float, time: Float): ShaderBrush {
+    override fun brush(srcLeft: Float, srcTop: Float, srcPerDst: Float, time: Float, grassFrontOf: Float): ShaderBrush {
         builder.uniform("srcOrigin", srcLeft, srcTop)
         builder.uniform("srcPerDst", srcPerDst)
         builder.uniform("time", time)
+        builder.uniform("grassFrontOf", grassFrontOf)
         return ShaderBrush(builder.makeShader())
     }
 
