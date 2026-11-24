@@ -377,7 +377,8 @@ private class BiomeSceneState {
             }
 
             if (a.reactT >= 0) a.reactT += dt
-            if (a.reactT > REACT_DURATION || asleep) a.reactT = -1.0
+            // La reacción dura lo que su animación de mirar arriba (depende de la especie).
+            if (a.reactT > BirdSheet.cycleSeconds(BirdSheet.LOOK_UP_ROW, pet.species) || asleep) a.reactT = -1.0
             if (a.bounceT >= 0) a.bounceT += dt
             if (a.bounceT > BOUNCE_DURATION) a.bounceT = -1.0
             a.hearts.forEach { it.age += dt }
@@ -465,7 +466,6 @@ private class BiomeSceneState {
 
     companion object {
         const val SPEED = 0.16 // fracción de la zona de paseo por segundo
-        const val REACT_DURATION = 0.4
         const val BOUNCE_DURATION = 0.35
         const val HEART_LIFE = 0.9
     }
@@ -524,14 +524,20 @@ private fun DrawScope.drawActor(state: BiomeSceneState, a: Actor, pet: PetEntity
 
     val asleep = state.isResting(pet)
     val t = state.time + a.phase
-    val (col, row) = when {
-        a.lift > 0.05 -> (floor(t / 0.06).toInt() % BirdSheet.frames(BirdSheet.FLY_ROW)) to BirdSheet.FLY_ROW
+    val species = pet.species
+    val row = when {
+        a.lift > 0.05 -> BirdSheet.FLY_ROW
         // Al tocarla, mira arriba (hacia quien la mima).
-        a.reactT >= 0 -> min(BirdSheet.frames(BirdSheet.LOOK_UP_ROW) - 1, floor(a.reactT / 0.1).toInt()) to BirdSheet.LOOK_UP_ROW
+        a.reactT >= 0 -> BirdSheet.LOOK_UP_ROW
         // Dormida: su animación de dormir, muy lenta. De noche despierta: descansa.
-        pet.needs.isSleeping -> (floor(t / 0.9).toInt() % BirdSheet.frames(BirdSheet.SLEEP_ROW)) to BirdSheet.SLEEP_ROW
-        asleep -> (floor(t / 0.7).toInt() % BirdSheet.frames(BirdSheet.REST_ROW)) to BirdSheet.REST_ROW
-        else -> (floor(t / 0.3).toInt() % BirdSheet.frames(BirdSheet.IDLE_ROW)) to BirdSheet.IDLE_ROW
+        pet.needs.isSleeping -> BirdSheet.SLEEP_ROW
+        asleep -> BirdSheet.REST_ROW
+        else -> BirdSheet.IDLE_ROW
+    }
+    val col = if (row == BirdSheet.LOOK_UP_ROW) {
+        BirdSheet.onceFrame(row, species, a.reactT)
+    } else {
+        BirdSheet.loopFrame(row, species, t)
     }
 
     // Respiración idle: más lenta y profunda mientras duerme.
