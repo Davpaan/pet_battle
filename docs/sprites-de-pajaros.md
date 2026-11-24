@@ -22,10 +22,18 @@ con la misma estructura, para que se pueda sustituir el arte de una especie sin 
 
 Las constantes están en `BirdSheet` (`PetSpeciesCatalog.kt`).
 
+Una especie puede tener **más frames** por animación, para que se mueva con más fluidez: su hoja
+es más ancha (tantas columnas como frames tenga su animación más larga) y sus números van en
+`BirdSheet.frames(row, species)`. Cada ciclo dura lo mismo en todas las especies
+(`BirdSheet.cycleSeconds`), así que con más frames cada uno dura menos. El test
+`BirdSheetsTest` comprueba que cada hoja tiene dibujo en todos los frames que declara el código.
+
 ## Estado del arte
 
-- **Arrendajo** (`pet_blue_jay.png`): estilo nuevo, con sus 32 frames propios (sacados de
-  `docs/demo_images/`).
+- **Arrendajo** (`pet_blue_jay.png`): estilo nuevo, con hoja ampliada de **16 columnas** (4096 ×
+  1536): 12 frames de vuelo y 16 en cada una de las demás animaciones. Se monta con el modo
+  `frames` a partir de `tools/bird_sprites/arrendajo/` (una imagen transparente por animación).
+  Su reacción al tocarlo (mirar arriba) dura 1,2 s, porque sube la cabeza y la vuelve a bajar.
 - **Resto de especies**: estilo antiguo pasado a esta rejilla; los frames que no tenían se han
   rellenado con copias del más parecido (ver `OLD_TO_NEW` en `build_grid.py`). Hay que
   sustituirlos cuando exista su arte nuevo.
@@ -33,7 +41,13 @@ Las constantes están en `BirdSheet` (`PetSpeciesCatalog.kt`).
 ## Herramientas (`tools/bird_sprites/`)
 
 ```bash
-# Hoja de una especie a partir de una referencia con el estilo nuevo (pájaros sobre fondo
+# Hoja a partir de una imagen transparente por animación (rejilla de 4 columnas, frames en orden
+# de lectura, mirando a la derecha): vuelo.png, reposo.png, andar.png, mirar_arriba.png,
+# descansar.png y dormir.png. Conserva la posición de cada pájaro en su casilla, para que el
+# movimiento entre frames (saltos, cabeza) se mantenga:
+python3 tools/bird_sprites/build_grid.py frames tools/bird_sprites/arrendajo composeApp/src/commonMain/composeResources/drawable/pet_blue_jay.png
+
+# Hoja de 8 columnas a partir de una referencia con el estilo nuevo (pájaros sobre fondo
 # oscuro, una animación por fila en el orden de la tabla y mirando a la derecha):
 python3 tools/bird_sprites/build_grid.py jay REFERENCIA.jpeg composeApp/src/commonMain/composeResources/drawable/pet_blue_jay.png
 

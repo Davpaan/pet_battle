@@ -3,7 +3,7 @@
 Port a **Kotlin Multiplatform + Compose Multiplatform** del juego Mini Pou
 (Flutter): una mascota virtual con 14 especies de pájaro y un modo
 **defender la torre** donde las mascotas que has criado combaten contra
-gusanos (y, desde el nivel 8, mariposas) usando la habilidad de su elemento.
+gusanos (que, desde el nivel 8, pasan a ser mariposas) usando la habilidad de su elemento.
 
 Objetivos: **Android** y **escritorio (JVM)**, probado en Ubuntu/Linux.
 

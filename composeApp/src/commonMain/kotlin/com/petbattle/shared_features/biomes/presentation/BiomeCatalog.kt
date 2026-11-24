@@ -7,6 +7,7 @@ import com.petbattle.resources.biome_grassland
 import com.petbattle.resources.biome_grassland_hills
 import com.petbattle.resources.biome_grassland_sky
 import com.petbattle.resources.biome_grassland_terrain
+import com.petbattle.resources.biome_grassland_wind
 import com.petbattle.resources.biome_highlands
 import com.petbattle.resources.biome_meadow
 import com.petbattle.resources.biome_mountain
@@ -45,13 +46,36 @@ val Biome.background: DrawableResource
 
 /**
  * Fondo partido en capas para el efecto parallax, de atrás adelante: [sky] (cielo y nubes),
- * [back] (elementos de fondo, como las colinas) y [terrain] (el suelo, que no se mueve).
+ * [back] (elementos de fondo, como las colinas) y [terrain] (el suelo, que no se desplaza).
  */
 class BiomeLayers(
     val sky: DrawableResource,
     val back: DrawableResource,
     val terrain: DrawableResource,
+    /**
+     * Mapa de viento del terreno (rojo = árboles, verde = hierba; ver WindPainter): si lo hay,
+     * el terreno se dibuja mecido por el viento.
+     */
+    val wind: DrawableResource? = null,
+    /** Capas ilustradas (no pixel art): se dibujan suavizadas al escalarlas. */
+    val smooth: Boolean = false,
+    /**
+     * Borde del fondo del suelo cuando no es horizontal (un prado en cuesta): puntos (x, y) de
+     * izquierda a derecha, en fracciones de la imagen del terreno. Las mascotas del fondo se
+     * posan sobre esta línea. Si es null, el borde es la primera fila opaca del terreno.
+     */
+    val groundEdge: List<Pair<Float, Float>>? = null,
 )
+
+/**
+ * Borde superior del prado de la pradera (la cuesta sube hacia la izquierda, hasta los
+ * árboles). Mismos puntos que MEADOW_EDGE en tools/grassland_layers/grassland_layers.py
+ * (píxeles de la imagen de 1284x832).
+ */
+private val grasslandGroundEdge = listOf(
+    0 to 495, 200 to 532, 400 to 560, 560 to 586, 700 to 602, 800 to 632,
+    950 to 655, 1100 to 672, 1284 to 690,
+).map { (x, y) -> x / 1284f to y / 832f }
 
 /** Capas del fondo si el bioma las tiene; si no, se dibuja [background] entero. */
 val Biome.backgroundLayers: BiomeLayers?
@@ -60,6 +84,9 @@ val Biome.backgroundLayers: BiomeLayers?
             sky = Res.drawable.biome_grassland_sky,
             back = Res.drawable.biome_grassland_hills,
             terrain = Res.drawable.biome_grassland_terrain,
+            wind = Res.drawable.biome_grassland_wind,
+            smooth = true,
+            groundEdge = grasslandGroundEdge,
         )
         Biome.woodland -> BiomeLayers(
             sky = Res.drawable.biome_woodland_sky,

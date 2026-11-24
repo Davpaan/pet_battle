@@ -238,10 +238,7 @@ class DefenseGame(
             val route = routes[nextRoute]
             nextRoute = (nextRoute + 1) % routes.size
             val level = DefenseRules.enemyLevel(elapsed)
-            // El dado solo se tira cuando ya pueden salir mariposas, para no alterar antes la
-            // secuencia aleatoria de los disparos.
-            val kind = if (DefenseRules.butterfliesUnlocked(level)) DefenseRules.enemyKind(level, nextRandom()) else EnemyKind.worm
-            enemies += Enemy(route, EnemyEntity.spawn(level, kind), enemies.size)
+            enemies += Enemy(route, EnemyEntity.spawn(level, DefenseRules.enemyKind(level)), enemies.size)
         }
     }
 

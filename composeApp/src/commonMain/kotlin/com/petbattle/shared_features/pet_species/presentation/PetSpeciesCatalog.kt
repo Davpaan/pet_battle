@@ -19,8 +19,10 @@ import com.petbattle.resources.pet_white_dove
 import com.petbattle.resources.pet_wood_thrush
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import org.jetbrains.compose.resources.DrawableResource
+import kotlin.math.floor
+import kotlin.math.min
 
-/** Disposición común a todos los spritesheets de pájaros: cuadrícula 4x4 de frames de 256x256. */
+/** Disposición común a todos los spritesheets de pájaros: una animación por fila, frames de 256x256. */
 object BirdSheet {
     /** Lado de un frame en píxeles de la hoja (sprites de alta resolución). */
     const val FRAME_SIZE = 256
@@ -36,7 +38,8 @@ object BirdSheet {
 
     /**
      * Rejilla de la hoja: 8 columnas x 6 filas, una animación por fila (cada una con su número
-     * de frames, ver [frames]). Las hojas se montan con tools/bird_sprites/build_grid.py.
+     * de frames, ver [frames]). Una especie con más frames (más fluida) tiene la hoja más ancha.
+     * Las hojas se montan con tools/bird_sprites/build_grid.py.
      */
     const val COLUMNS = 8
 
@@ -48,11 +51,41 @@ object BirdSheet {
     const val REST_ROW = 4 // descansar despierta, de noche (4)
     const val SLEEP_ROW = 5 // dormir (4)
 
-    /** Número de frames de la animación de la fila [row]. */
-    fun frames(row: Int) = when (row) {
-        FLY_ROW -> 8
-        IDLE_ROW, HOP_ROW -> 6
-        else -> 4
+    /** Número de frames de la animación de la fila [row] de [species]. */
+    fun frames(row: Int, species: PetSpecies): Int = when (species) {
+        // Hoja ampliada (tools/bird_sprites/arrendajo): 12 frames de vuelo y 16 en el resto.
+        PetSpecies.blueJay -> if (row == FLY_ROW) 12 else 16
+        else -> when (row) {
+            FLY_ROW -> 8
+            IDLE_ROW, HOP_ROW -> 6
+            else -> 4
+        }
+    }
+
+    /**
+     * Segundos que dura un ciclo de la animación de la fila [row]. En bucle es igual para todas
+     * las especies: con más frames, cada uno dura menos y el movimiento es más fluido. Mirar
+     * arriba (la reacción al tocarla, de una sola vez) dura más en el arrendajo, cuya animación
+     * sube la cabeza y la vuelve a bajar; las demás acaban mirando arriba.
+     */
+    fun cycleSeconds(row: Int, species: PetSpecies): Double = when (row) {
+        FLY_ROW -> 0.48
+        IDLE_ROW, HOP_ROW -> 1.8
+        LOOK_UP_ROW -> if (species == PetSpecies.blueJay) 1.2 else 0.4
+        REST_ROW -> 2.8
+        else -> 3.6 // dormir
+    }
+
+    /** Frame de la animación en bucle de la fila [row] de [species] en el instante [time] (s). */
+    fun loopFrame(row: Int, species: PetSpecies, time: Double): Int {
+        val n = frames(row, species)
+        return floor(time / cycleSeconds(row, species) * n).toInt().mod(n)
+    }
+
+    /** Frame de una animación de una sola vez (mirar arriba) tras [elapsed] s: se queda en el último. */
+    fun onceFrame(row: Int, species: PetSpecies, elapsed: Double): Int {
+        val n = frames(row, species)
+        return min(n - 1, floor(elapsed / cycleSeconds(row, species) * n).toInt()).coerceAtLeast(0)
     }
 }
 
