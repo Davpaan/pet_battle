@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,6 +45,8 @@ import com.petbattle.core.time.DayPhase
 import com.petbattle.resources.pet_egg
 import com.petbattle.resources.Res
 import com.petbattle.core.time.systemNowMillis
+import com.petbattle.core.ui.WindPainter
+import com.petbattle.core.ui.createWindPainter
 import com.petbattle.core.ui.drawSpriteFrame
 import com.petbattle.shared_features.biomes.domain.Biome
 import com.petbattle.shared_features.biomes.presentation.background
@@ -108,7 +111,10 @@ fun BiomeScene(
         val terrain = imageResource(it.terrain)
         // Dónde empieza el suelo continuo de la capa de terreno (se mide una vez por imagen).
         val solid = remember(terrain) { solidRowFraction(terrain) }
-        BackdropLayers(imageResource(it.sky), imageResource(it.back), terrain, solid)
+        val windMap = it.wind?.let { res -> imageResource(res) }
+        val wind = remember(terrain, windMap) { windMap?.let { map -> createWindPainter(terrain, map) } }
+        val filter = if (it.smooth) FilterQuality.Medium else FilterQuality.None
+        BackdropLayers(imageResource(it.sky), imageResource(it.back), terrain, solid, wind, filter)
     }
     val sheets = PetSpecies.entries.associateWith { imageResource(it.sheet) }
     val eggImage = imageResource(Res.drawable.pet_egg)
@@ -557,6 +563,10 @@ class BackdropLayers(
     val terrain: ImageBitmap,
     /** Altura (fracción de [terrain]) donde empieza el suelo continuo (ver [solidRowFraction]). */
     val terrainSolid: Float,
+    /** Viento sobre el terreno (hierba y árboles); null = terreno quieto. */
+    val wind: WindPainter? = null,
+    /** Suavizado al escalar: None para pixel art, Medium para ilustraciones. */
+    val filter: FilterQuality = FilterQuality.None,
 )
 
 /**
@@ -591,7 +601,8 @@ private const val HORIZON_ANCHOR = 0.70f
 /**
  * Dibuja un fondo por capas según [time] (segundos de escena): el cielo avanza sin parar en
  * horizontal (las nubes se mueven y la imagen se repite al llegar al borde), los elementos de
- * fondo se mecen despacio (parallax) y el terreno queda fijo delante.
+ * fondo se mecen despacio (parallax) y el terreno queda fijo delante; si tiene viento
+ * ([BackdropLayers.wind]), su hierba y sus árboles se mecen.
  * El filtro del momento del día ([look]: matriz de color y degradado del cielo) se aplica
  * **solo al cielo**: el fondo y el terreno conservan siempre sus colores.
  */
@@ -601,10 +612,16 @@ fun DrawScope.drawLayeredBackdrop(
     look: DayLook = DayLook.Midday,
 ) {
     val drift = sin(time * 2 * kotlin.math.PI / DRIFT_PERIOD_S).toFloat()
-    drawScrollingLayer(layers.sky, look, progress = time / SKY_LOOP_S)
+    drawScrollingLayer(layers.sky, look, progress = time / SKY_LOOP_S, filter = layers.filter)
     drawDayGradient(look, ground = false)
-    drawBackdropLayer(layers.back, DayLook.Midday, zoom = BACK_ZOOM, shift = drift * BACK_DRIFT)
-    drawBackdropLayer(layers.terrain, DayLook.Midday)
+    drawBackdropLayer(layers.back, DayLook.Midday, zoom = BACK_ZOOM, shift = drift * BACK_DRIFT, filter = layers.filter)
+    val wind = layers.wind
+    if (wind != null) {
+        val crop = layerCrop(layers.terrain, zoom = 1f, shift = 0f)
+        drawRect(wind.brush(crop.left.toFloat(), crop.top.toFloat(), crop.width.toFloat() / size.width, time.toFloat()))
+    } else {
+        drawBackdropLayer(layers.terrain, DayLook.Midday, filter = layers.filter)
+    }
 }
 
 /**
@@ -613,14 +630,19 @@ fun DrawScope.drawLayeredBackdrop(
  * junta une un borde consigo mismo y el bucle no tiene corte aunque la imagen no sea cíclica
  * (p. ej. una nube cortada en el borde).
  */
-private fun DrawScope.drawScrollingLayer(image: ImageBitmap, look: DayLook, progress: Double) {
+private fun DrawScope.drawScrollingLayer(
+    image: ImageBitmap,
+    look: DayLook,
+    progress: Double,
+    filter: FilterQuality = FilterQuality.None,
+) {
     val k = max(size.width / image.width, size.height / image.height)
     val w = (image.width * k).roundToInt()
     val h = (image.height * k).roundToInt()
     val top = ((size.height - h) / 2).roundToInt()
     // El patrón (normal + espejo) se repite cada dos anchos.
     val offset = ((progress % 2.0) * w).roundToInt()
-    val filter = if (look.isNeutral) null else look.colorFilter()
+    val colorFilter = if (look.isNeutral) null else look.colorFilter()
     var x = -offset
     var mirrored = false
     while (x < size.width) {
@@ -628,10 +650,10 @@ private fun DrawScope.drawScrollingLayer(image: ImageBitmap, look: DayLook, prog
             val dst = IntOffset(x, top)
             if (mirrored) {
                 scale(-1f, 1f, pivot = Offset(x + w / 2f, top + h / 2f)) {
-                    drawImage(image, dstOffset = dst, dstSize = IntSize(w, h), filterQuality = FilterQuality.None, colorFilter = filter)
+                    drawImage(image, dstOffset = dst, dstSize = IntSize(w, h), filterQuality = filter, colorFilter = colorFilter)
                 }
             } else {
-                drawImage(image, dstOffset = dst, dstSize = IntSize(w, h), filterQuality = FilterQuality.None, colorFilter = filter)
+                drawImage(image, dstOffset = dst, dstSize = IntSize(w, h), filterQuality = filter, colorFilter = colorFilter)
             }
         }
         x += w
@@ -650,7 +672,24 @@ private fun DrawScope.drawBackdropLayer(
     look: DayLook,
     zoom: Float = 1f,
     shift: Float = 0f,
+    filter: FilterQuality = FilterQuality.None,
 ) {
+    val crop = layerCrop(image, zoom, shift)
+    drawImage(
+        image,
+        srcOffset = crop.topLeft,
+        srcSize = crop.size,
+        dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+        filterQuality = filter,
+        colorFilter = if (look.isNeutral) null else look.colorFilter(),
+    )
+}
+
+/**
+ * Parte de [image] (en sus píxeles) que cubre el lienzo: centrada, ampliada [zoom] veces
+ * manteniendo la línea del horizonte y desplazada [shift] (-1..1) dentro del margen.
+ */
+private fun DrawScope.layerCrop(image: ImageBitmap, zoom: Float, shift: Float): IntRect {
     val w = size.width
     val h = size.height
     val k0 = max(w / image.width, h / image.height)
@@ -664,12 +703,5 @@ private fun DrawScope.drawBackdropLayer(
     val top = (horizonY - screenHorizon / k).roundToInt().coerceIn(0, image.height - srcH)
     val slack = (image.width - srcW) / 2
     val left = (slack + shift.coerceIn(-1f, 1f) * slack).roundToInt().coerceIn(0, image.width - srcW)
-    drawImage(
-        image,
-        srcOffset = IntOffset(left, top),
-        srcSize = IntSize(srcW, srcH),
-        dstSize = IntSize(w.roundToInt(), h.roundToInt()),
-        filterQuality = FilterQuality.None,
-        colorFilter = if (look.isNeutral) null else look.colorFilter(),
-    )
+    return IntRect(IntOffset(left, top), IntSize(srcW, srcH))
 }
