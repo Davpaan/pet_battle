@@ -36,16 +36,17 @@ private const val FOODS_PER_ROW = 4
 
 /**
  * Menú de comidas al pulsar "Alimentar": un modal con casillas cuadradas de madera en dos
- * filas. Muestra todas: averiguar qué le gusta a cada especie forma parte del juego.
+ * filas. La elegida se queda en la mano para dejarla en el suelo. Muestra todas: averiguar qué
+ * le gusta a cada especie forma parte del juego.
  */
 @Composable
-fun FoodPickerSheet(petName: String, onPicked: (Food) -> Unit, onDismiss: () -> Unit) {
+fun FoodPickerSheet(onPicked: (Food) -> Unit, onDismiss: () -> Unit) {
     // Sin el ancho máximo por defecto de los diálogos, que recortaría la primera fila.
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         WoodPanel {
             Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("¿Qué le das a $petName?", style = GameUi.text(18.sp), modifier = Modifier.padding(end = 12.dp))
+                    Text("¿Qué comida dejas en el suelo?", style = GameUi.text(18.sp), modifier = Modifier.padding(end = 12.dp))
                     WoodIconButton(GameIcon.Close, "Cerrar", onDismiss, size = 40.dp)
                 }
                 for (row in Food.entries.chunked(FOODS_PER_ROW)) {

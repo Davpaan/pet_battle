@@ -39,6 +39,8 @@ kotlin {
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutines.swing)
+            // Decodificador OGG Vorbis para javax.sound (la música del juego va en .ogg)
+            implementation(libs.vorbisspi)
         }
     }
 }

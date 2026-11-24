@@ -12,3 +12,6 @@ local.properties
 .DS_Store
 captures/
 *.miff
+
+# Audio original sin comprimir (en el juego se usa la versión .ogg)
+audio_originales/

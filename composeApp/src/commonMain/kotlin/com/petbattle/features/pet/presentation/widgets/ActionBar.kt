@@ -9,16 +9,22 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.petbattle.core.ui.GameIcon
 import com.petbattle.core.ui.WoodIconButton
-import com.petbattle.shared_features.pet_status.domain.PetNeedsRules
+import com.petbattle.features.pet.presentation.game.HandTool
+import com.petbattle.shared_features.pet_food.presentation.icon
 import com.petbattle.shared_features.pet_status.domain.entities.PetEntity
 
 /** Ancho que ocupa la columna de acciones (la escena deja ese hueco libre a la izquierda). */
 val ActionBarWidth: Dp = 72.dp
 
-/** Acciones sobre la mascota seleccionada: pequeña columna de botones abajo a la izquierda. */
+/**
+ * Acciones: pequeña columna de botones abajo a la izquierda. Comida y limpieza no van a la
+ * mascota seleccionada: ponen una herramienta en la mano ([handTool], con aro dorado) que se usa
+ * tocando la escena; pulsar otra vez el botón la suelta. Dormir y defender actúan sobre [pet].
+ */
 @Composable
 fun ActionBar(
     pet: PetEntity,
+    handTool: HandTool?,
     onFeed: () -> Unit,
     onToggleSleep: () -> Unit,
     onClean: () -> Unit,
@@ -26,11 +32,12 @@ fun ActionBar(
     modifier: Modifier = Modifier,
 ) {
     val sleeping = pet.needs.isSleeping
+    val food = (handTool as? HandTool.FoodItem)?.food
     Column(modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        // Las reglas deciden la disponibilidad; la UI solo las refleja.
-        WoodIconButton(GameIcon.Feed, "Alimentar", if (PetNeedsRules.canFeed(pet.needs)) onFeed else null)
+        // Con comida en la mano, el botón muestra cuál es.
+        WoodIconButton(food?.icon ?: GameIcon.Feed, "Alimentar", onFeed, selected = food != null)
         WoodIconButton(if (sleeping) GameIcon.Wake else GameIcon.Sleep, if (sleeping) "Despertar" else "Dormir", onToggleSleep)
-        WoodIconButton(GameIcon.Clean, "Limpiar", if (PetNeedsRules.canClean(pet.needs)) onClean else null)
+        WoodIconButton(GameIcon.Wash, "Limpiar", onClean, selected = handTool == HandTool.Water)
         WoodIconButton(GameIcon.Defend, "Defender", onDefend)
     }
 }

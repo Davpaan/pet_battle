@@ -28,6 +28,9 @@ object GameRules {
     const val EGG_PRICE = 10
     const val BIOME_PRICE = 20
 
+    /** Lo que dura la comida dejada en el suelo si nadie se la come. */
+    const val GROUND_FOOD_LIFETIME_MS = 10_000L
+
     /** Lo que cuesta el próximo huevo (0 si aún no se ha usado el gratis). */
     fun eggPrice(gameState: GameStateEntity) = if (gameState.freeEggUsed) EGG_PRICE else 0
 
@@ -109,19 +112,42 @@ object GameRules {
         return gameState.copy(activeId = petId, currentBiome = pet.biome)
     }
 
-    /**
-     * Ofrece [food] a la mascota activa. Si es un polluelo, cuenta la comida y, al llegar a
-     * GrowthRules.MEALS_TO_GROW, crece. `null` si ahora no se le puede dar de comer.
-     */
+    /** Ofrece [food] a la mascota activa (ver [feedPet]). */
     fun feedActive(gameState: GameStateEntity, food: Food, random: Random): Pair<GameStateEntity, FeedResult?> {
         val pet = gameState.active ?: return gameState to null
-        if (!PetNeedsRules.canFeed(pet.needs)) return gameState to null
+        return feedPet(gameState, pet.id, food, random)
+    }
+
+    /**
+     * La mascota [petId] se come [food]. Si es un polluelo, cuenta la comida y, al llegar a
+     * GrowthRules.MEALS_TO_GROW, crece. `null` si ahora no puede comer (o no existe).
+     */
+    fun feedPet(gameState: GameStateEntity, petId: String, food: Food, random: Random): Pair<GameStateEntity, FeedResult?> {
+        val pet = gameState.byId(petId) ?: return gameState to null
+        if (pet.isEgg || !PetNeedsRules.canFeed(pet.needs)) return gameState to null
         val (needs, result) = PetNeedsRules.offerFood(pet.needs, food, pet.diet)
         if (result == null) return gameState to null
         // Siempre se la come: el polluelo cuenta cualquier comida para crecer.
         val fed = GrowthRules.recordMeal(pet.copy(needs = needs), food)
         if (GrowthRules.shouldGrow(fed)) return gameState.replace(GrowthRules.grow(fed, random)) to FeedResult.grew
         return gameState.replace(fed) to result
+    }
+
+    /**
+     * Si la mascota irá a por [food] dejada en el suelo: solo despierta, con hambre y si es de
+     * su dieta (los polluelos comen de todo).
+     */
+    fun wantsGroundFood(pet: PetEntity, food: Food) =
+        !pet.isEgg && PetNeedsRules.canFeed(pet.needs) && PetNeedsRules.isHungry(pet.needs) && food in pet.diet
+
+    /** Aplica [change] al estado de la mascota [petId] (no hace nada si no existe o es un huevo). */
+    fun updateNeeds(
+        gameState: GameStateEntity,
+        petId: String,
+        change: (PetNeedsEntity) -> PetNeedsEntity,
+    ): GameStateEntity {
+        val pet = gameState.byId(petId)?.takeIf { !it.isEgg } ?: return gameState
+        return gameState.replace(pet.copy(needs = change(pet.needs)))
     }
 
     /**

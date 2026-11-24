@@ -3,6 +3,7 @@ package com.petbattle.features.pet.presentation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -20,6 +21,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,13 +33,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.petbattle.core.time.DayPhase
+import com.petbattle.core.time.systemNowMillis
 import com.petbattle.core.ui.GameIcon
 import com.petbattle.core.ui.GameIconImage
 import com.petbattle.core.ui.GameUi
+import com.petbattle.core.ui.OptionsButton
+import com.petbattle.core.ui.PlatformBackHandler
 import com.petbattle.core.ui.WoodButton
 import com.petbattle.core.ui.WoodIconButton
 import com.petbattle.core.ui.WoodPanel
 import com.petbattle.features.pet.presentation.game.BiomeScene
+import com.petbattle.features.pet.presentation.game.GroundFood
+import com.petbattle.features.pet.presentation.game.HandTool
 import com.petbattle.features.pet.presentation.widgets.ActionBar
 import com.petbattle.features.pet.presentation.widgets.ActionBarWidth
 import com.petbattle.features.pet.presentation.widgets.CoinCounter
@@ -67,16 +75,17 @@ private val MenuButtonSize = 68.dp
  * los combates (nunca elige especie); los polluelos crecen según lo que comen.
  *
  * Distribución del HUD sobre la escena del bioma:
- * - arriba a la izquierda, las monedas;
+ * - arriba a la izquierda, el engranaje de opciones y las monedas;
  * - arriba en el centro, el nivel de la mascota seleccionada;
  * - arriba a la derecha, sus estados (desplegable, con scroll);
- * - abajo a la izquierda, la columna de acciones;
+ * - abajo a la izquierda, la columna de acciones (comida y agua se llevan en la mano y se usan
+ *   tocando la escena: el agua limpia a la mascota tocada y la comida se deja en el suelo);
  * - abajo a la derecha, el botón del menú de juego (cajón con "Huevos" y "Biomas").
  *
  * El único lugar donde se encuentran el controlador y la escena.
  */
 @Composable
-fun PetScreen(controller: PetController, onDefend: () -> Unit) {
+fun PetScreen(controller: PetController, onDefend: () -> Unit, onOptions: () -> Unit) {
     val gameState by controller.gameState.collectAsState()
     val dayPhase by controller.dayPhase.collectAsState()
     var menuOpen by remember { mutableStateOf(false) }
@@ -85,6 +94,9 @@ fun PetScreen(controller: PetController, onDefend: () -> Unit) {
     var choosingFood by remember { mutableStateOf(false) }
     var confirmRelease by remember { mutableStateOf<PetEntity?>(null) }
     var feedback by remember { mutableStateOf<String?>(null) } // aviso breve (comida, compras...)
+    var handTool by remember { mutableStateOf<HandTool?>(null) }
+    val groundFood = remember { mutableStateListOf<GroundFood>() }
+    var nextFoodId by remember { mutableStateOf(0L) }
 
     // Huevos puestos y eclosiones: se cuentan con el mismo aviso.
     LaunchedEffect(controller) {
@@ -115,6 +127,22 @@ fun PetScreen(controller: PetController, onDefend: () -> Unit) {
             return@BoxWithConstraints
         }
 
+        // La comida dejada en un bioma no viaja con el jugador.
+        LaunchedEffect(biome) { groundFood.clear() }
+        // Cada comida desaparece sola si nadie se la come a tiempo.
+        for (item in groundFood) {
+            key(item.id) {
+                LaunchedEffect(item.id) {
+                    delay(GameRules.GROUND_FOOD_LIFETIME_MS)
+                    groundFood.removeAll { it.id == item.id }
+                }
+            }
+        }
+        // Sin mascota seleccionada no hay barra de acciones: nada en la mano.
+        LaunchedEffect(pet == null) { if (pet == null) handTool = null }
+        // Atrás suelta la herramienta antes que nada.
+        if (handTool != null) PlatformBackHandler { handTool = null }
+
         fun openMenu(tab: MenuTab) {
             menuTab = tab
             menuOpen = true
@@ -144,10 +172,40 @@ fun PetScreen(controller: PetController, onDefend: () -> Unit) {
             dayPhase = dayPhase,
             walkStartInset = if (pet != null) ActionBarWidth else 0.dp,
             walkEndInset = MenuButtonSize,
+            handTool = handTool,
+            groundFood = groundFood,
+            wantsFood = GameRules::wantsGroundFood,
+            onPetCleaned = { id ->
+                val target = current.byId(id) ?: return@BiomeScene
+                if (!controller.clean(id)) {
+                    feedback = if (target.needs.isSleeping) "${target.name} está durmiendo" else "${target.name} no necesita un baño"
+                }
+            },
+            onFoodDropped = { food, x, depth ->
+                groundFood += GroundFood(nextFoodId++, food, x, depth, systemNowMillis())
+            },
+            onFoodEaten = { foodId, petId ->
+                val item = groundFood.firstOrNull { it.id == foodId } ?: return@BiomeScene
+                groundFood.remove(item)
+                val eater = current.byId(petId) ?: return@BiomeScene
+                feedback = when (controller.feedPet(petId, item.food)) {
+                    FeedResult.eaten -> "¡A ${eater.name} le encanta! Ñam ñam"
+                    FeedResult.overate -> "${eater.name} come sin hambre: le sienta mal"
+                    FeedResult.disliked -> "${eater.name} se come ${item.food.label.lowercase()} a disgusto"
+                    FeedResult.grew -> {
+                        val adult = controller.gameState.value?.byId(petId)?.species
+                        "¡${eater.name} ha crecido! Ahora es: ${adult?.label ?: "?"}"
+                    }
+                    null -> null
+                }
+            },
         )
 
         Box(Modifier.fillMaxSize().safeDrawingPadding().padding(8.dp)) {
-            CoinCounter(current.gold, onShop = { openMenu(MenuTab.eggs) }, Modifier.align(Alignment.TopStart))
+            Row(Modifier.align(Alignment.TopStart), verticalAlignment = Alignment.CenterVertically) {
+                OptionsButton(onOptions)
+                CoinCounter(current.gold, onShop = { openMenu(MenuTab.eggs) }, Modifier.padding(start = 6.dp))
+            }
             if (pet != null) {
                 LevelBadge(pet, Modifier.align(Alignment.TopCenter))
                 val social = PetDerivedNeeds.socialization(pet, current)
@@ -162,9 +220,11 @@ fun PetScreen(controller: PetController, onDefend: () -> Unit) {
                 )
                 ActionBar(
                     pet = pet,
-                    onFeed = { choosingFood = true },
+                    handTool = handTool,
+                    // Con comida en la mano, el botón la suelta; si no, abre el menú de comidas.
+                    onFeed = { if (handTool is HandTool.FoodItem) handTool = null else choosingFood = true },
                     onToggleSleep = controller::toggleSleep,
-                    onClean = controller::clean,
+                    onClean = { handTool = if (handTool == HandTool.Water) null else HandTool.Water },
                     onDefend = onDefend,
                     modifier = Modifier.align(Alignment.BottomStart),
                 )
@@ -201,21 +261,11 @@ fun PetScreen(controller: PetController, onDefend: () -> Unit) {
             onClose = { menuOpen = false },
         )
 
-        if (choosingFood && pet != null) {
+        if (choosingFood) {
             FoodPickerSheet(
-                petName = pet.name,
                 onPicked = { food ->
                     choosingFood = false
-                    feedback = when (controller.feed(food)) {
-                        FeedResult.eaten -> "¡A ${pet.name} le encanta! Ñam ñam"
-                        FeedResult.overate -> "${pet.name} come sin hambre: le sienta mal"
-                        FeedResult.disliked -> "${pet.name} se come ${food.label.lowercase()} a disgusto: no le sacia y le sienta mal"
-                        FeedResult.grew -> {
-                            val adult = controller.gameState.value?.active?.species
-                            "¡${pet.name} ha crecido! Ahora es: ${adult?.label ?: "?"}"
-                        }
-                        null -> null
-                    }
+                    handTool = HandTool.FoodItem(food)
                 },
                 onDismiss = { choosingFood = false },
             )

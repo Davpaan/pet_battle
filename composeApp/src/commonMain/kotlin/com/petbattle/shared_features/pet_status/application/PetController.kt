@@ -86,15 +86,29 @@ class PetController(
 
     // --- Intenciones del jugador ----------------------------------------------------
 
-    /** Ofrece [food] a la mascota activa; `null` si ahora no se le puede dar de comer. */
-    fun feed(food: Food): FeedResult? {
+    /**
+     * La mascota [petId] se come [food] (p. ej. la que encontró en el suelo); `null` si ahora no
+     * puede comer.
+     */
+    fun feedPet(petId: String, food: Food): FeedResult? {
         val gameState = _gameState.value ?: return null
-        val (next, result) = GameRules.feedActive(advanceAll(gameState, clock.nowMillis()), food, random)
+        val (next, result) = GameRules.feedPet(advanceAll(gameState, clock.nowMillis()), petId, food, random)
         if (result != null) set(next, saveNow = result == FeedResult.grew)
         return result
     }
+
     fun toggleSleep() = applyToActive(PetNeedsRules::toggleSleep, saveNow = true)
-    fun clean() = applyToActive(PetNeedsRules::clean)
+
+    /** Limpia a la mascota [petId]; `false` si ahora no se puede (dormida o ya limpia). */
+    fun clean(petId: String): Boolean {
+        val gameState = _gameState.value ?: return false
+        val now = clock.nowMillis()
+        val current = advanceAll(gameState, now)
+        val pet = current.byId(petId)?.takeIf { !it.isEgg } ?: return false
+        if (!PetNeedsRules.canClean(pet.needs)) return false
+        set(GameRules.updateNeeds(current, petId, PetNeedsRules::clean))
+        return true
+    }
     fun cuddle() = applyToActive(PetNeedsRules::cuddle)
 
     /**

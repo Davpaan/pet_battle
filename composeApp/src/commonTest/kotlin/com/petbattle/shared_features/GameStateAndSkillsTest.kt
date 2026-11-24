@@ -71,6 +71,31 @@ class GameStateAndSkillsTest {
         return gameState to result
     }
 
+    @Test fun onlyAwakeHungryPetsGoForGroundFoodTheyLike() {
+        val dove = withAdult(inWoodland, PetSpecies.whiteDove, "Paloma").active!!
+        val liked = dove.diet.first()
+        val disliked = Food.entries.first { it !in dove.diet }
+        val hungry = dove.copy(needs = dove.needs.copy(satiety = 0.0))
+        assertTrue(GameRules.wantsGroundFood(hungry, liked))
+        assertFalse(GameRules.wantsGroundFood(hungry, disliked))
+        assertFalse(GameRules.wantsGroundFood(hungry.copy(needs = hungry.needs.copy(isSleeping = true)), liked))
+        assertFalse(GameRules.wantsGroundFood(dove.copy(needs = dove.needs.copy(satiety = 100.0)), liked))
+        // Los polluelos comen de todo.
+        val chick = hatch(inWoodland, "Pio").active!!
+        val hungryChick = chick.copy(needs = chick.needs.copy(satiety = 0.0))
+        assertTrue(Food.entries.all { GameRules.wantsGroundFood(hungryChick, it) })
+    }
+
+    @Test fun feedPetFeedsThatPetNotTheActiveOne() {
+        val first = withAdult(inWoodland, PetSpecies.whiteDove, "Una")
+        val both = withAdult(first, PetSpecies.whiteDove, "Otra")
+        val hungry = GameRules.updateNeeds(both, "Una-id") { it.copy(satiety = 0.0) }
+        val (next, result) = GameRules.feedPet(hungry, "Una-id", PetSpecies.whiteDove.diet.first(), Random(1))
+        assertEquals(FeedResult.eaten, result)
+        assertTrue(next.byId("Una-id")!!.needs.satiety > 0.0)
+        assertEquals(hungry.byId("Otra-id"), next.byId("Otra-id"))
+    }
+
     @Test fun everySpeciesHasDietAndEveryFoodHasSpecies() {
         for (s in PetSpecies.entries) assertTrue(s.diet.isNotEmpty(), s.name)
         assertEquals(Food.entries.toSet(), PetSpecies.adults.flatMap { it.diet }.toSet())

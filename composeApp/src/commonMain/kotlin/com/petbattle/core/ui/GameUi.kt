@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,6 +38,7 @@ import com.petbattle.resources.Res
 import com.petbattle.resources.ui_arrow_down
 import com.petbattle.resources.ui_biome
 import com.petbattle.resources.ui_clean
+import com.petbattle.resources.ui_wash
 import com.petbattle.resources.ui_close
 import com.petbattle.resources.ui_coin
 import com.petbattle.resources.ui_defend
@@ -115,7 +117,7 @@ enum class GameIcon(val res: DrawableResource) {
     Coin(Res.drawable.ui_coin), Egg(Res.drawable.ui_egg), Biome(Res.drawable.ui_biome),
     Menu(Res.drawable.ui_menu), Level(Res.drawable.ui_level), Feed(Res.drawable.ui_feed),
     Sleep(Res.drawable.ui_sleep), Wake(Res.drawable.ui_wake), Clean(Res.drawable.ui_clean),
-    Defend(Res.drawable.ui_defend), Release(Res.drawable.ui_release), Plus(Res.drawable.ui_plus),
+    Defend(Res.drawable.ui_defend), Wash(Res.drawable.ui_wash), Release(Res.drawable.ui_release), Plus(Res.drawable.ui_plus),
     ArrowDown(Res.drawable.ui_arrow_down), Close(Res.drawable.ui_close), Play(Res.drawable.ui_play),
     Hunger(Res.drawable.ui_stat_hunger), Energy(Res.drawable.ui_stat_energy), Fun(Res.drawable.ui_stat_fun),
     Hygiene(Res.drawable.ui_stat_hygiene), Social(Res.drawable.ui_stat_social), Climate(Res.drawable.ui_stat_climate),
@@ -158,7 +160,10 @@ fun WoodPanel(
     )
 }
 
-/** Botón redondo de madera con un icono del juego. Sin [onClick] se ve apagado. */
+/**
+ * Botón redondo de madera con un icono del juego. Sin [onClick] se ve apagado; con [selected]
+ * lleva un aro dorado (p. ej. la herramienta que se tiene en la mano).
+ */
 @Composable
 fun WoodIconButton(
     icon: GameIcon,
@@ -167,8 +172,10 @@ fun WoodIconButton(
     modifier: Modifier = Modifier,
     size: Dp = 56.dp,
     badge: GameIcon? = null,
+    selected: Boolean = false,
 ) {
     Box(modifier.size(size)) {
+        if (selected) Box(Modifier.align(Alignment.Center).requiredSize(size + 10.dp).border(4.dp, GameUi.Gold, CircleShape))
         WoodPanel(
             Modifier
                 .matchParentSize()

@@ -29,6 +29,9 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -45,12 +48,17 @@ import com.petbattle.core.time.DayPhase
 import com.petbattle.resources.pet_egg
 import com.petbattle.resources.Res
 import com.petbattle.core.time.systemNowMillis
+import com.petbattle.core.ui.GameIcon
 import com.petbattle.core.ui.WindPainter
+import com.petbattle.core.ui.hiddenPointer
 import com.petbattle.core.ui.createWindPainter
 import com.petbattle.core.ui.drawSpriteFrame
 import com.petbattle.shared_features.biomes.domain.Biome
 import com.petbattle.shared_features.biomes.presentation.background
 import com.petbattle.shared_features.biomes.presentation.backgroundLayers
+import com.petbattle.shared_features.pet_food.domain.Food
+import com.petbattle.shared_features.pet_food.presentation.icon
+import com.petbattle.shared_features.pet_status.domain.GameRules
 import com.petbattle.shared_features.pet_species.domain.PetSpecies
 import com.petbattle.shared_features.pet_species.presentation.BirdSheet
 import com.petbattle.shared_features.pet_species.presentation.sheet
@@ -97,6 +105,12 @@ private const val DEPTH_GAP = 0.35
  * volar), aunque se puede seguir tocándolas. Fuera de la noche solo descansa la que se haya
  * acostado, sin cambiar la pantalla.
  * [walkStartInset] y [walkEndInset] dejan libre a cada lado el espacio que ocupen los botones.
+ *
+ * Con una herramienta en la mano ([handTool]) el cursor se convierte en ella y los toques
+ * cambian: con agua, tocar una mascota la limpia ([onPetCleaned]); con comida, tocar el suelo
+ * la deja allí ([onFoodDropped]). La comida del suelo ([groundFood]) atrae a las mascotas
+ * despiertas que la quieran ([wantsFood]): la más cercana vuela hasta ella, la picotea y avisa
+ * con [onFoodEaten].
  */
 @Composable
 fun BiomeScene(
@@ -108,6 +122,12 @@ fun BiomeScene(
     dayPhase: DayPhase = DayPhase.morning,
     walkStartInset: Dp = 0.dp,
     walkEndInset: Dp = 0.dp,
+    handTool: HandTool? = null,
+    groundFood: List<GroundFood> = emptyList(),
+    wantsFood: (PetEntity, Food) -> Boolean = { _, _ -> false },
+    onPetCleaned: (String) -> Unit = {},
+    onFoodDropped: (food: Food, x: Double, depth: Double) -> Unit = { _, _, _ -> },
+    onFoodEaten: (foodId: Long, petId: String) -> Unit = { _, _ -> },
 ) {
     val backdrop = imageResource(biome.background)
     val layers = biome.backgroundLayers?.let {
@@ -121,11 +141,19 @@ fun BiomeScene(
     }
     val sheets = PetSpecies.entries.associateWith { imageResource(it.sheet) }
     val eggImage = imageResource(Res.drawable.pet_egg)
+    val foodImages = Food.entries.associateWith { imageResource(it.icon.res) }
+    val waterImage = imageResource(GameIcon.Wash.res)
     val state = remember(biome) { BiomeSceneState() }
     val currentPets by rememberUpdatedState(pets)
     val currentActive by rememberUpdatedState(activeId)
     val currentPhase by rememberUpdatedState(dayPhase)
     val onTap by rememberUpdatedState(onPetTapped)
+    val currentTool by rememberUpdatedState(handTool)
+    val currentFood by rememberUpdatedState(groundFood)
+    val currentWants by rememberUpdatedState(wantsFood)
+    val onCleaned by rememberUpdatedState(onPetCleaned)
+    val onDropped by rememberUpdatedState(onFoodDropped)
+    val onEaten by rememberUpdatedState(onFoodEaten)
     val textMeasurer = rememberTextMeasurer()
     var frame by remember { mutableLongStateOf(0L) }
 
@@ -135,22 +163,56 @@ fun BiomeScene(
             withFrameNanos { now ->
                 val dt = if (last == 0L) 0.0 else (now - last) / 1e9
                 last = now
-                state.update(min(dt, 0.1), currentPets, currentPhase)
+                val eaten = state.update(min(dt, 0.1), currentPets, currentPhase, currentFood, currentWants)
+                eaten.forEach { (foodId, petId) -> onEaten(foodId, petId) }
                 frame++
             }
         }
     }
 
     Canvas(
-        modifier.pointerInput(state) {
-            detectTapGestures { pos ->
-                val id = state.petAt(pos, currentActive) ?: return@detectTapGestures
-                // Los huevos no se pueden seleccionar ni mimar.
-                if (currentPets.firstOrNull { it.id == id }?.isEgg == true) return@detectTapGestures
-                state.onTapped(id, currentPets)
-                onTap(id)
+        modifier
+            .hiddenPointer(handTool != null)
+            // Sigue al puntero (sin consumir nada) para dibujar la herramienta en su sitio.
+            .pointerInput(state) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val change = event.changes.firstOrNull() ?: continue
+                        state.pointer = change.position
+                        state.pointerIsTouch = change.type != PointerType.Mouse
+                        // Con ratón se ve mientras esté sobre la escena; con el dedo, mientras toca.
+                        state.pointerVisible = when {
+                            event.type == PointerEventType.Exit -> false
+                            change.type == PointerType.Mouse -> true
+                            else -> change.pressed
+                        }
+                    }
+                }
             }
-        },
+            .pointerInput(state) {
+                detectTapGestures { pos ->
+                    when (val tool = currentTool) {
+                        HandTool.Water -> {
+                            val id = state.petAt(pos, currentActive) ?: return@detectTapGestures
+                            if (currentPets.firstOrNull { it.id == id }?.isEgg != false) return@detectTapGestures
+                            state.onSplashed(id)
+                            onCleaned(id)
+                        }
+                        is HandTool.FoodItem -> {
+                            val (x, depth) = state.groundSpotAt(pos)
+                            onDropped(tool.food, x, depth)
+                        }
+                        null -> {
+                            val id = state.petAt(pos, currentActive) ?: return@detectTapGestures
+                            // Los huevos no se pueden seleccionar ni mimar.
+                            if (currentPets.firstOrNull { it.id == id }?.isEgg == true) return@detectTapGestures
+                            state.onTapped(id, currentPets)
+                            onTap(id)
+                        }
+                    }
+                }
+            },
     ) {
         frame // se lee para que cada frame se redibuje
         if (layers != null) {
@@ -171,19 +233,47 @@ fun BiomeScene(
         // De atrás adelante: las que están más cerca tapan a las del fondo.
         val ordered = pets.sortedByDescending { state.actors[it.id]?.depth ?: 0.0 }
         val now = systemNowMillis()
+        // La comida del suelo se intercala por profundidad con las mascotas.
+        val foods = groundFood.sortedByDescending { it.depth }.toMutableList()
+        fun drawFoodsBehind(depth: Double) {
+            while (foods.isNotEmpty() && foods.first().depth >= depth) {
+                val item = foods.removeAt(0)
+                drawGroundFood(state, item, foodImages.getValue(item.food), now)
+            }
+        }
         for (pet in ordered) {
             val actor = state.actors[pet.id] ?: continue
+            drawFoodsBehind(actor.depth)
             if (pet.isEgg) drawEgg(state, actor, pet, eggImage, now)
             else drawActor(state, actor, pet, sheets.getValue(pet.species))
             // La hierba que nace por delante de ella la tapa (y deja ver entre las briznas).
             if (wind != null && crop != null) drawGrassInFront(wind, crop, state.time, actor)
         }
+        drawFoodsBehind(Double.NEGATIVE_INFINITY)
         for (pet in ordered) {
             val actor = state.actors[pet.id] ?: continue
+            drawSplash(actor)
             drawHearts(actor)
             drawZzz(textMeasurer, state, actor)
             val label = if (pet.isEgg) "Huevo · ${timeLeft(pet.hatchesAt!! - now)}" else pet.name
             drawName(textMeasurer, actor, label, active = pet.id == activeId)
+        }
+        // La herramienta en la mano, donde esté el puntero (con el dedo, algo por encima para verla).
+        val tool = handTool
+        if (tool != null && state.pointerVisible) {
+            val image = when (tool) {
+                HandTool.Water -> waterImage
+                is HandTool.FoodItem -> foodImages.getValue(tool.food)
+            }
+            val side = 56.dp.toPx()
+            val lift = if (state.pointerIsTouch) 52.dp.toPx() else 0f
+            val p = state.pointer
+            drawImage(
+                image,
+                dstOffset = IntOffset((p.x - side / 2).roundToInt(), (p.y - side / 2 - lift).roundToInt()),
+                dstSize = IntSize(side.roundToInt(), side.roundToInt()),
+                filterQuality = FilterQuality.Medium,
+            )
         }
     }
 }
@@ -204,6 +294,12 @@ private class Actor(var x: Double, var depth: Double, val phase: Double) {
     var saturation = 1.0
     var reactT = -1.0 // segundos de reacción al toque, <0 = sin reaccionar
     var bounceT = -1.0
+    var splashT = -1.0 // segundos desde que le cayó agua, <0 = sin gotas
+
+    /** Comida del suelo a la que va (o que está comiendo) y dónde está. */
+    var foodId: Long? = null
+    var foodX = 0.0
+    var eatT = -1.0 // segundos picoteando, <0 = no está comiendo
     val hearts = mutableListOf<Heart>()
     var rect = Rect.Zero
 
@@ -334,6 +430,20 @@ private class BiomeSceneState {
         return points.last().second
     }
 
+    // Puntero sobre la escena: para dibujar la herramienta que se lleva en la mano.
+    var pointer = Offset.Zero
+    var pointerVisible = false
+    var pointerIsTouch = false
+
+    /** Posición (x 0..1, profundidad 0..1) del suelo bajo el punto de pantalla [pos]. */
+    fun groundSpotAt(pos: Offset): Pair<Double, Double> {
+        val x = ((pos.x - walkLeft - slotSide / 2) / walkWidth).toDouble().coerceIn(0.0, 1.0)
+        val back = backYAt(pos.x)
+        // Por encima del borde del fondo (el cielo) cae al fondo; por debajo del suelo, delante.
+        val depth = if (frontY - back < 1f) 0.0 else ((frontY - pos.y) / (frontY - back)).toDouble().coerceIn(0.0, 1.0)
+        return x to depth
+    }
+
     /** Si es de noche (lo último que dijo la pantalla): descansan todas. */
     var night = false
 
@@ -343,7 +453,19 @@ private class BiomeSceneState {
     /** Dormida o de noche: descansa (pose de dormir, sin volar). */
     fun isResting(pet: PetEntity) = pet.needs.isSleeping || night
 
-    fun update(dt: Double, pets: List<PetEntity>, phase: DayPhase) {
+    /**
+     * Avanza [dt] segundos. Devuelve la comida que se ha terminado de comer en este frame
+     * (id de la comida, id de la mascota).
+     */
+    fun update(
+        dt: Double,
+        pets: List<PetEntity>,
+        phase: DayPhase,
+        foods: List<GroundFood> = emptyList(),
+        wantsFood: (PetEntity, Food) -> Boolean = { _, _ -> false },
+    ): List<Pair<Long, String>> {
+        val eaten = mutableListOf<Pair<Long, String>>()
+        val foodIds = foods.map { it.id }.toSet()
         time += dt
         night = phase == DayPhase.night
         val ids = pets.map { it.id }.toSet()
@@ -364,7 +486,20 @@ private class BiomeSceneState {
             a.saturation += (targetSat - a.saturation) * ease
             a.lift += ((if (a.moving) 1.0 else 0.0) - a.lift) * (dt * 5).coerceIn(0.0, 1.0)
 
-            if (pet.isEgg) a.moving = false // los huevos no se mueven
+            // La comida a la que iba ya no está (se la comió otra o caducó).
+            if (a.foodId != null && a.foodId !in foodIds) {
+                a.foodId = null
+                a.eatT = -1.0
+            }
+            if (a.eatT >= 0) {
+                a.eatT += dt
+                if (a.eatT >= EAT_DURATION) {
+                    a.foodId?.let { eaten += it to pet.id }
+                    a.foodId = null
+                    a.eatT = -1.0
+                    a.restFor = 2.0 + Random.nextDouble() * 3
+                }
+            } else if (pet.isEgg) a.moving = false // los huevos no se mueven
             else if (a.moving) fly(a, dt)
             else if (!asleep && a.reactT < 0) {
                 a.restFor -= dt
@@ -383,7 +518,36 @@ private class BiomeSceneState {
             if (a.bounceT > BOUNCE_DURATION) a.bounceT = -1.0
             a.hearts.forEach { it.age += dt }
             a.hearts.removeAll { it.age > HEART_LIFE }
+            if (a.splashT >= 0) a.splashT += dt
+            if (a.splashT > SPLASH_DURATION) a.splashT = -1.0
         }
+
+        // Cada comida sin dueño atrae a la mascota libre más cercana que la quiera.
+        val claimed = actors.values.mapNotNull { it.foodId }.toSet()
+        for (food in foods) {
+            if (food.id in claimed) continue
+            val taker = pets
+                .filter { !isResting(it) && wantsFood(it, food.food) }
+                .mapNotNull { pet -> actors[pet.id]?.takeIf { it.foodId == null && it.eatT < 0 } }
+                .minByOrNull { abs(it.x - food.x) + abs(it.depth - food.depth) * 0.3 }
+                ?: continue
+            goToFood(taker, food)
+        }
+        return eaten
+    }
+
+    /** Vuela hasta posarse junto a [food] (al lado por el que llega), mirando hacia ella. */
+    private fun goToFood(a: Actor, food: GroundFood) {
+        val side = if (food.x >= a.x) -1.0 else 1.0
+        a.foodId = food.id
+        a.foodX = food.x
+        a.reactT = -1.0
+        a.target = (food.x + side * gap * 0.35).coerceIn(0.0, 1.0)
+        a.targetDepth = food.depth
+        val flightTime = max(abs(a.target - a.x) / SPEED, 0.5)
+        a.depthSpeed = abs(a.targetDepth - a.depth) / flightTime
+        a.moving = true
+        a.facingRight = a.target > a.x
     }
 
     /** Elige un destino al azar (suficientemente lejos) y despega. */
@@ -412,6 +576,13 @@ private class BiomeSceneState {
         a.x = a.target
         // Se posa cuando llega también a su profundidad.
         if (a.depth != a.targetDepth) return
+        // Si venía a por comida, se posa a su lado aunque haya otra cerca, y empieza a picotear.
+        if (a.foodId != null) {
+            a.moving = false
+            a.facingRight = a.foodX > a.x
+            a.eatT = 0.0
+            return
+        }
         // Al posarse no puede quedar encima de otra: sigue de largo o se da la vuelta.
         if (!isFree(a.x, a.depth, a)) {
             val spot = freeSpotFrom(a.x, a.depth, if (dir == 0.0) 1.0 else dir, a)
@@ -464,10 +635,19 @@ private class BiomeSceneState {
         if (!isResting(pet)) a.reactT = 0.0
     }
 
+    /** Le cae agua encima (al limpiarla). */
+    fun onSplashed(id: String) {
+        val a = actors[id] ?: return
+        a.splashT = 0.0
+        a.bounceT = 0.0
+    }
+
     companion object {
         const val SPEED = 0.16 // fracción de la zona de paseo por segundo
         const val BOUNCE_DURATION = 0.35
         const val HEART_LIFE = 0.9
+        const val SPLASH_DURATION = 0.7
+        const val EAT_DURATION = 1.6 // segundos picoteando antes de acabarse la comida
     }
 }
 
@@ -550,6 +730,9 @@ private fun DrawScope.drawActor(state: BiomeSceneState, a: Actor, pet: PetEntity
     val pivot = Offset(left + side / 2, topY + side)
     val dirtiness = ((60 - pet.needs.hygiene) / 60).coerceIn(0.0, 1.0)
 
+    // Comiendo: picotea inclinándose hacia delante (hacia donde mira) a golpes.
+    val peck = if (a.eatT >= 0) (max(0.0, sin(a.eatT * 2 * kotlin.math.PI * 2.2)) * 28).toFloat() else 0f
+    rotate(if (a.facingRight) peck else -peck, pivot) {
     scale(bx * (1 + b), by * (1 - b), pivot) {
         val bounds = Rect(left, topY, left + side, topY + side)
         drawIntoCanvas { it.saveLayer(bounds, Paint()) }
@@ -573,6 +756,45 @@ private fun DrawScope.drawActor(state: BiomeSceneState, a: Actor, pet: PetEntity
             }
         }
         drawIntoCanvas { it.restore() }
+    }
+    }
+}
+
+/** Comida en el suelo: cae desde un poco más arriba al dejarla y se desvanece al caducar. */
+private fun DrawScope.drawGroundFood(state: BiomeSceneState, food: GroundFood, image: ImageBitmap, now: Long) {
+    val age = (now - food.droppedAt).coerceAtLeast(0L)
+    val side = state.slotSide * 0.3f * state.scaleAt(food.depth)
+    val groundY = state.groundYAt(food.depth, food.x)
+    val fall = (1f - (age / 250f).coerceAtMost(1f)).let { it * it } * side * 1.5f
+    val left = state.centerXAt(food.x) - side / 2
+    val top = groundY - side * 0.85f - fall
+    val remaining = GameRules.GROUND_FOOD_LIFETIME_MS - age
+    val alpha = (remaining / 2_000f).coerceIn(0f, 1f) // los dos últimos segundos se desvanece
+    drawOval(Color(0x33000000).copy(alpha = 0.2f * alpha), Offset(left + side * 0.1f, groundY - side * 0.08f), Size(side * 0.8f, side * 0.16f))
+    drawImage(
+        image,
+        dstOffset = IntOffset(left.roundToInt(), top.roundToInt()),
+        dstSize = IntSize(side.roundToInt(), side.roundToInt()),
+        alpha = alpha,
+        filterQuality = FilterQuality.Medium,
+    )
+}
+
+/** Gotas de agua que caen sobre la mascota al limpiarla. */
+private fun DrawScope.drawSplash(a: Actor) {
+    if (a.splashT < 0) return
+    val k = (a.splashT / BiomeSceneState.SPLASH_DURATION).toFloat()
+    val r = a.rect
+    val drop = 5.dp.toPx()
+    for (i in 0 until 7) {
+        // Cada gota sale a su altura y con un pequeño retraso, y cae hasta el cuerpo.
+        val delay = (i % 3) * 0.12f
+        val t = ((k - delay) / (1f - delay)).coerceIn(0f, 1f)
+        if (t <= 0f) continue
+        val x = r.left + r.width * (0.2f + 0.6f * ((i * 0.37f) % 1f))
+        val y = r.top - r.height * 0.2f + t * r.height * 0.7f
+        val color = Color(0xFF7FCBF2).copy(alpha = 1f - t * 0.7f)
+        drawOval(color, Offset(x - drop / 2, y - drop), Size(drop, drop * 1.6f))
     }
 }
 

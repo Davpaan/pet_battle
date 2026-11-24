@@ -4,11 +4,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import com.petbattle.core.audio.MusicController
+import com.petbattle.core.audio.MusicTrack
+import com.petbattle.core.ui.OptionsDialog
 import com.petbattle.features.defense.presentation.DefenseScreen
 import com.petbattle.features.pet.presentation.PetScreen
 import com.petbattle.shared_features.pet_status.application.PetController
@@ -23,15 +28,25 @@ private val AppColors = lightColorScheme(
     surface = Color(0xFFF5FBF6),
 )
 
-/** Raíz: la pantalla de mascota y, encima, el modo defensa. */
+/** Raíz: la pantalla de mascota y, encima, el modo defensa. Cada una con su música en bucle. */
 @Composable
-fun App(controller: PetController) {
+fun App(controller: PetController, music: MusicController) {
     var screen by remember { mutableStateOf(Screen.Pet) }
+    var optionsOpen by remember { mutableStateOf(false) }
+    val soundEnabled by music.soundEnabled.collectAsState()
+
+    LaunchedEffect(screen) {
+        music.setTrack(if (screen == Screen.Defense) MusicTrack.randomBattle() else MusicTrack.MainTheme)
+    }
+
     MaterialTheme(colorScheme = AppColors) {
         Surface {
             when (screen) {
-                Screen.Pet -> PetScreen(controller, onDefend = { screen = Screen.Defense })
+                Screen.Pet -> PetScreen(controller, onDefend = { screen = Screen.Defense }, onOptions = { optionsOpen = true })
                 Screen.Defense -> DefenseScreen(controller, onExit = { screen = Screen.Pet })
+            }
+            if (optionsOpen) {
+                OptionsDialog(soundEnabled, music::setSoundEnabled, onDismiss = { optionsOpen = false })
             }
         }
     }

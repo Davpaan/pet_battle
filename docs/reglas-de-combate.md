@@ -3,7 +3,7 @@
 Este documento recoge las reglas **tal y como están implementadas** en el código. Cada vez
 que cambie una regla o un valor de balance, hay que actualizarlo aquí (ver CLAUDE.md).
 
-Última actualización: 2026-11-23.
+Última actualización: 2026-11-24.
 
 Fuentes en el código:
 - Combate (modo defensa): `features/defense/domain/DefenseRules.kt` (`DefenseBalance`),
@@ -143,14 +143,22 @@ Las **ambientales** no dependen de la interacción del jugador y no se guardan.
   descanso se recupera en vez de bajar.
 - **Descuido**: hambre, descanso o higiene por debajo de **20** cuentan como descuidadas;
   cada una hace que la diversión baje un 50% más rápido.
-- **Comida** (siempre se la come):
+- **Dar de comer**: se elige una comida y se deja en el suelo del bioma tocando la escena (se
+  pueden dejar varias). Va a por ella la mascota **despierta, con hambre (saciedad < 75) y con
+  esa comida en su dieta** más cercana: vuela hasta ella, la picotea y se la come. Si nadie se
+  la come, desaparece a los **10 segundos**. La comida dejada no se guarda en la partida y se
+  pierde al cambiar de bioma.
+- **Qué le hace la comida** (quien la come siempre se la come):
   - de su dieta y con hambre (saciedad < 75): sacia +25 y digestión +8;
   - de su dieta sin hambre: sacia +25 y digestión −10;
   - fuera de su dieta: no sacia y digestión −15 (−25 si además no tenía hambre);
   - **comer no ensucia**;
-  - el polluelo come de todo (nunca hay comida ajena para él).
-- **Limpiar** mejora a la vez higiene, plumaje y pico y garras; se puede si a cualquiera de
-  las tres le falta algo.
+  - el polluelo come de todo (nunca hay comida ajena para él);
+  - como solo va a por la comida una mascota con hambre y de su dieta, dejándola en el suelo
+    siempre se da el primer caso: comida ajena y comer sin hambre ya no ocurren en la práctica.
+- **Limpiar**: con el agua en la mano se toca la mascota que se quiere limpiar (cualquiera del
+  bioma, no solo la seleccionada). Mejora a la vez higiene, plumaje y pico y garras; se puede si
+  a cualquiera de las tres le falta algo.
 - **Dormida** no come, no se limpia ni se deja mimar, y se despierta sola con el descanso
   lleno. De noche descansa pero sigue despierta (se puede interactuar).
 

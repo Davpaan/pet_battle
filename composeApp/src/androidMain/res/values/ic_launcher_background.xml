@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Color de fondo del icono adaptativo de la aplicación -->
+    <color name="ic_launcher_background">#F6E7C1</color>
+</resources>
